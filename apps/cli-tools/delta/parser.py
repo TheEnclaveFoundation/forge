@@ -1,4 +1,3 @@
-# --- FILE: foundry/apps/cli-tools/delta_forge/parser.py ---
 import os
 import re
 from typing import List

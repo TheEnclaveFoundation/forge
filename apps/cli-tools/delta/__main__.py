@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# The Delta Forge (v14.0 - Blueprint Edition)
+# Delta (v14.0 - Blueprint Edition)
 #
 # This version introduces a major aesthetic overhaul for a cleaner, more
 # focused, and vertically-oriented user interface.

@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 #
-# The Context Forge (v9.0 - The UNIX Philosopher Edition)
+# context (v11.0 - The Forge Edition)
 #
 # An intelligent script that architects and generates a context snapshot from
 # The Enclave Foundation's ecosystem for high-fidelity LLM interaction.
 #
 # Changelog:
-# v9.0 - Correctly implemented UNIX philosophy. Progress/UI is always sent to stderr.
-#        Snapshot data is always sent to stdout. UI is suppressed if stderr is not a tty.
-#        Snapshot is not printed to stdout if it's an interactive session to avoid spam.
-# v10.0 - Updated FOUNDATION_ROOT to be configurable via environment variable ENCLAVE_FOUNDATION_ROOT.
+# v11.0 - Updated to operate within the 'forge' repository structure.
+#       - Renamed from 'forge-context' to 'context'.
+# v10.0 - Updated FOUNDATION_ROOT to be configurable via environment variable.
 #
 
 import os
@@ -18,9 +17,7 @@ import argparse
 import fnmatch
 from typing import List
 
-# ---
-# Configuration & Smart Aesthetics
-# ---
+# --- Configuration & Smart Aesthetics ---
 
 class Colors:
     """A smart color class that disables colors if stderr is not a TTY."""
@@ -33,8 +30,6 @@ class Colors:
     PURPLE = "\033[95m" if IS_A_TTY else ""
     GREY = "\033[90m" if IS_A_TTY else ""
 
-# The root directory for The Enclave Foundation projects.
-# Can be overridden by the ENCLAVE_FOUNDATION_ROOT environment variable.
 FOUNDATION_ROOT = os.environ.get(
     "ENCLAVE_FOUNDATION_ROOT",
     os.path.expanduser("~/softrecursion/TheEnclaveFoundation")
@@ -43,9 +38,7 @@ FOUNDATION_ROOT = os.environ.get(
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 IGNORE_FILE = os.path.join(SCRIPT_DIR, ".contextignore")
 
-# ---
-# Core Functions
-# ---
+# --- Core Functions ---
 
 def eprint(*args, **kwargs):
     """Prints to stderr."""
@@ -68,7 +61,6 @@ def process_repo(repo_name: str, ignore_patterns: List[str]) -> List[str]:
 
     readme_files, other_files = [], []
     for root, dirs, files in os.walk(repo_path, topdown=True):
-        # Filter directories in-place to avoid traversing ignored ones
         dirs[:] = [d for d in dirs if not any(fnmatch.fnmatch(d, p) for p in ignore_patterns)]
         for file in files:
             if any(fnmatch.fnmatch(file, p) for p in ignore_patterns): continue
@@ -99,16 +91,14 @@ def write_snapshot_to_stdout(all_files: List[str], system_prompt: str or None):
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f_in:
                 print(f_in.read(), end='')
-            print("\n", end='') # Ensure a newline after file content, before next marker
-        except Exception as e:
-            eprint(f"  {Colors.RED}Error reading file '{relative_path}': {e}{Colors.RESET}")
-            print(f"Error reading file: {e}\n", end='') # Also print error to stdout for snapshot integrity
+            print("\n", end='')
+        except Exception as e: print(f"Error reading file: {e}")
         print(f"--- END OF FILE: ./{relative_path} ---\n")
 
 def print_summary(repos_scraped_count, files_forged_count, is_interactive):
     """Prints the final, beautifully formatted summary box to stderr."""
     BOX_WIDTH = 54
-    line1 = "✅ Forge Complete ✅"
+    line1 = "✅ Context Forged ✅"
     line2 = f"Repos Scraped: {repos_scraped_count}"
     line3 = f"Files Forged:  {files_forged_count}"
     line4 = "Output sent to stdout." if not is_interactive else "No output written to terminal."
@@ -122,32 +112,32 @@ def print_summary(repos_scraped_count, files_forged_count, is_interactive):
     eprint(f"{Colors.GREEN}╚{'═' * (BOX_WIDTH-2)}╝{Colors.RESET}")
 
 def main():
-    parser = argparse.ArgumentParser(description="The Context Forge (v9.0)", add_help=False)
+    parser = argparse.ArgumentParser(description="context: Generates a context snapshot for LLM interaction.", add_help=False)
     parser.add_argument('system_prompt', nargs='?', default=None)
-    parser.add_argument('--all', action='store_true', help="Scrape foundation, codex, specs, and foundry.")
-    parser.add_argument('--foundation', action='store_true', help="Include the 'foundation' repository.")
-    parser.add_argument('--codex', action='store_true', help="Include the 'codex' repository.")
-    parser.add_argument('--specs', action='store_true', help="Include the 'specs' repository.")
-    parser.add_argument('--foundry', action='store_true', help="Include the 'foundry' repository.")
-    parser.add_argument('--output', type=str, help="Specify the output file path. (Default: ./context_snapshot.txt)")
-    parser.add_argument('--help', action='help', help='Display this help message.')
+    parser.add_argument('--all', action='store_true', help="Scrape foundation, codex, specs, and forge.")
+    parser.add_argument('--foundation', action='store_true')
+    parser.add_argument('--codex', action='store_true')
+    parser.add_argument('--specs', action='store_true')
+    parser.add_argument('--forge', action='store_true') # Changed from 'foundry'
+    parser.add_argument('--help', action='help', help='Show this help message and exit')
     args = parser.parse_args()
 
-    IS_INTERACTIVE = sys.stdout.isatty() # Check if stdout is a TTY
+    IS_INTERACTIVE = sys.stdout.isatty()
 
     eprint(f"""
 {Colors.CYAN}╔══════════════════════════════════════════════════╗
-║{Colors.BOLD}          ~-~-~ The Context Forge ~-~-~           {Colors.RESET}{Colors.CYAN}║
+║{Colors.BOLD}            ~-~-~ context ~-~-~                 {Colors.RESET}{Colors.CYAN}║
 ╚══════════════════════════════════════════════════╝{Colors.RESET}
     """)
 
     repos_to_scrape = []
-    if args.all: repos_to_scrape = ['foundation', 'codex', 'specs', 'foundry']
+    # Updated the default list for --all
+    if args.all: repos_to_scrape = ['foundation', 'codex', 'specs', 'forge']
     else:
         if args.foundation: repos_to_scrape.append('foundation')
         if args.codex: repos_to_scrape.append('codex')
         if args.specs: repos_to_scrape.append('specs')
-        if args.foundry: repos_to_scrape.append('foundry')
+        if args.forge: repos_to_scrape.append('forge') # Changed from 'foundry'
 
     if not repos_to_scrape:
         eprint(f"{Colors.YELLOW}Error: No repository specified. Use --all or see --help.{Colors.RESET}")
@@ -163,34 +153,14 @@ def main():
         repo_files = process_repo(repo, ignore_patterns)
         all_files_to_process.extend(repo_files)
 
-    # Determine output destination
-    output_to_file = False
-    output_filepath = args.output
-    if output_filepath:
-        output_to_file = True
-        try:
-            # Redirect stdout to the specified file temporarily
-            original_stdout = sys.stdout
-            sys.stdout = open(output_filepath, 'w', encoding='utf-8')
-            write_snapshot_to_stdout(all_files_to_process, args.system_prompt)
-        except Exception as e:
-            eprint(f"{Colors.RED}Error: Could not write to output file '{output_filepath}': {e}{Colors.RESET}")
-            sys.exit(1)
-        finally:
-            # Restore stdout
-            sys.stdout.close()
-            sys.stdout = original_stdout
-        
-        eprint(f"  {Colors.GREY}└── Snapshot written to '{output_filepath}'.{Colors.RESET}")
-    elif not IS_INTERACTIVE: # Only write to stdout if not interactive
+    if not IS_INTERACTIVE:
         write_snapshot_to_stdout(all_files_to_process, args.system_prompt)
 
-    print_summary(len(repos_to_scrape), len(all_files_to_process), IS_INTERACTIVE or output_to_file)
+    print_summary(len(repos_to_scrape), len(all_files_to_process), IS_INTERACTIVE)
 
-    if IS_INTERACTIVE and not output_filepath:
-        eprint(f"\n{Colors.YELLOW}Hint: To save output, redirect to a file or use --output:{Colors.RESET}")
+    if IS_INTERACTIVE:
+        eprint(f"\n{Colors.YELLOW}Hint: To save output, redirect to a file:{Colors.RESET}")
         eprint(f"{Colors.GREY}$ context --all > snapshot.txt{Colors.RESET}")
-        eprint(f"{Colors.GREY}$ context --all --output my_snapshot.txt{Colors.RESET}")
 
 if __name__ == "__main__":
     main()

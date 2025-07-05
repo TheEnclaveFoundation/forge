@@ -1,4 +1,3 @@
-# --- FILE: foundry/apps/cli-tools/delta_forge/diff.py ---
 import os
 import difflib
 from typing import List

@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 #
-# The Context Forge (v9.0 - The UNIX Philosopher Edition)
+# context (v11.0 - The Forge Edition)
 #
 # An intelligent script that architects and generates a context snapshot from
 # The Enclave Foundation's ecosystem for high-fidelity LLM interaction.
 #
 # Changelog:
-# v9.0 - Correctly implemented UNIX philosophy. Progress/UI is always sent to stderr.
-#        Snapshot data is always sent to stdout. UI is suppressed if stderr is not a tty.
-#        Snapshot is not printed to stdout if it's an interactive session to avoid spam.
-# v8.0 - Initial UNIX philosophy implementation.
-# v7.0 - Aesthetic overhaul with colors and robust fnmatch ignoring.
+# v11.0 - Updated to operate within the 'forge' repository structure.
+#       - Renamed from 'forge-context' to 'context'.
+# v10.0 - Updated FOUNDATION_ROOT to be configurable via environment variable.
 #
 
 import os
@@ -19,9 +17,7 @@ import argparse
 import fnmatch
 from typing import List
 
-# ---
-# Configuration & Smart Aesthetics
-# ---
+# --- Configuration & Smart Aesthetics ---
 
 class Colors:
     """A smart color class that disables colors if stderr is not a TTY."""
@@ -34,13 +30,15 @@ class Colors:
     PURPLE = "\033[95m" if IS_A_TTY else ""
     GREY = "\033[90m" if IS_A_TTY else ""
 
-FOUNDATION_ROOT = os.path.expanduser("~/softrecursion/TheEnclaveFoundation")
+FOUNDATION_ROOT = os.environ.get(
+    "ENCLAVE_FOUNDATION_ROOT",
+    os.path.expanduser("~/softrecursion/TheEnclaveFoundation")
+)
+
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 IGNORE_FILE = os.path.join(SCRIPT_DIR, ".contextignore")
 
-# ---
-# Core Functions
-# ---
+# --- Core Functions ---
 
 def eprint(*args, **kwargs):
     """Prints to stderr."""
@@ -100,7 +98,7 @@ def write_snapshot_to_stdout(all_files: List[str], system_prompt: str or None):
 def print_summary(repos_scraped_count, files_forged_count, is_interactive):
     """Prints the final, beautifully formatted summary box to stderr."""
     BOX_WIDTH = 54
-    line1 = "✅ Forge Complete ✅"
+    line1 = "✅ Context Forged ✅"
     line2 = f"Repos Scraped: {repos_scraped_count}"
     line3 = f"Files Forged:  {files_forged_count}"
     line4 = "Output sent to stdout." if not is_interactive else "No output written to terminal."
@@ -114,13 +112,13 @@ def print_summary(repos_scraped_count, files_forged_count, is_interactive):
     eprint(f"{Colors.GREEN}╚{'═' * (BOX_WIDTH-2)}╝{Colors.RESET}")
 
 def main():
-    parser = argparse.ArgumentParser(description="The Context Forge (v9.0)", add_help=False)
+    parser = argparse.ArgumentParser(description="context: Generates a context snapshot for LLM interaction.", add_help=False)
     parser.add_argument('system_prompt', nargs='?', default=None)
-    parser.add_argument('--all', action='store_true')
+    parser.add_argument('--all', action='store_true', help="Scrape foundation, codex, specs, and forge.")
     parser.add_argument('--foundation', action='store_true')
     parser.add_argument('--codex', action='store_true')
     parser.add_argument('--specs', action='store_true')
-    parser.add_argument('--foundry', action='store_true')
+    parser.add_argument('--forge', action='store_true') # Changed from 'foundry'
     parser.add_argument('--help', action='help', help='Show this help message and exit')
     args = parser.parse_args()
 
@@ -128,17 +126,18 @@ def main():
 
     eprint(f"""
 {Colors.CYAN}╔══════════════════════════════════════════════════╗
-║{Colors.BOLD}          ~-~-~ The Context Forge ~-~-~           {Colors.RESET}{Colors.CYAN}║
+║{Colors.BOLD}            ~-~-~ context ~-~-~                 {Colors.RESET}{Colors.CYAN}║
 ╚══════════════════════════════════════════════════╝{Colors.RESET}
     """)
 
     repos_to_scrape = []
-    if args.all: repos_to_scrape = ['foundation', 'codex', 'specs', 'foundry']
+    # Updated the default list for --all
+    if args.all: repos_to_scrape = ['foundation', 'codex', 'specs', 'forge']
     else:
         if args.foundation: repos_to_scrape.append('foundation')
         if args.codex: repos_to_scrape.append('codex')
         if args.specs: repos_to_scrape.append('specs')
-        if args.foundry: repos_to_scrape.append('foundry')
+        if args.forge: repos_to_scrape.append('forge') # Changed from 'foundry'
 
     if not repos_to_scrape:
         eprint(f"{Colors.YELLOW}Error: No repository specified. Use --all or see --help.{Colors.RESET}")
@@ -165,3 +164,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+===
