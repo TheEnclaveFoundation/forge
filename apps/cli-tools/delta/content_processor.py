@@ -7,9 +7,9 @@ def _strip_delta_example_markers(content: str) -> str:
     It also accounts for potential leading/trailing whitespace on the marker lines themselves.
     """
     example_block_re = re.compile(
-        r"^(?P<start_marker>\s*#! DELTA_EXAMPLE::START\s*)$\n" # Start marker line
-        r"(?P<content_inside>.*?)\n"                           # Captured content (non-greedy, including newlines)
-        r"^(?P<end_marker>\s*#! DELTA_EXAMPLE::END\s*)$",       # End marker line
+        r"^(?P<start_marker>\s*#! DELTA_EXAMPLE::START\s*)$\n"
+        r"(?P<content_inside>.*?)\n"
+        r"^(?P<end_marker>\s*#! DELTA_EXAMPLE::END\s*)$",
         re.MULTILINE | re.DOTALL
     )
 
@@ -33,13 +33,33 @@ def _convert_at_at_at_to_markdown_fences(content: str) -> str:
 
 def process_content_for_output(content: str) -> str:
     """
-    Orchestrates the processing of content for final output to a file or diff:
-    1. Strips `#! DELTA_EXAMPLE::START/END` markers.
-    2. Converts '@@@' markers to standard markdown code block fences ('```').
+    Orchestrates the processing of content for final output to a file or diff.
+    Crucially, it converts '@@@' to backticks ONLY outside of `#! DELTA_EXAMPLE` blocks,
+    while still removing the example markers themselves.
     """
-    # Important: Stripping example markers must happen before converting @@@
-    # so that @@@ inside example blocks are still converted.
-    processed_content = _strip_delta_example_markers(content)
-    processed_content = _convert_at_at_at_to_markdown_fences(processed_content)
+    example_block_re = re.compile(
+        r"^(?P<start_marker>\s*#! DELTA_EXAMPLE::START\s*)$\n"
+        r"(?P<content_inside>.*?)\n"
+        r"^(?P<end_marker>\s*#! DELTA_EXAMPLE::END\s*)$",
+        re.MULTILINE | re.DOTALL
+    )
+
+    placeholders = {}
+    def store_and_replace_example(match):
+        placeholder = f"__DELTA_EXAMPLE_PLACEHOLDER_{len(placeholders)}__"
+        # Store the raw, unprocessed content of the example block
+        placeholders[placeholder] = match.group('content_inside')
+        # Replace the entire example block (including markers) with the placeholder
+        return placeholder
+
+    # Isolate the example blocks
+    content_with_placeholders = example_block_re.sub(store_and_replace_example, content)
     
+    # Process the rest of the content (convert @@@ to ```)
+    processed_content = _convert_at_at_at_to_markdown_fences(content_with_placeholders)
+
+    # Substitute the raw, unprocessed example content back in
+    for placeholder, original_content in placeholders.items():
+        processed_content = processed_content.replace(placeholder, original_content)
+        
     return processed_content

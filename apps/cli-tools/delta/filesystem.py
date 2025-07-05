@@ -1,10 +1,11 @@
+# forge/apps/cli-tools/delta/filesystem.py
 import os
 import shutil
 from typing import List
 
 from .models import DeltaOperation
 from .content_processor import process_content_for_output
-from .ui import eprint, Colors
+from .ui import eprint, Colors, print_header, print_line
 from .config import FOUNDATION_ROOT
 
 def apply_single_operation(op: DeltaOperation):
@@ -25,7 +26,7 @@ def apply_single_operation(op: DeltaOperation):
         os.makedirs(op.path, exist_ok=True)
     elif op.action == 'DELETE_DIRECTORY':
         if os.path.isdir(op.path):
-            shutil.rmtree(op.path) # Use shutil.rmtree for robustly deleting non-empty directories
+            shutil.rmtree(op.path)
     elif op.action == 'APPEND_TO_FILE':
         with open(op.path, 'a', encoding='utf-8') as f: f.write(processed_content)
     elif op.action == 'PREPEND_TO_FILE':
@@ -50,17 +51,17 @@ def apply_single_operation(op: DeltaOperation):
 
 def apply_operations(ops: List[DeltaOperation]):
     """Applies a list of approved delta operations to the filesystem."""
-    eprint(f"\n{Colors.PURPLE}{Colors.BOLD}Applying {len(ops)} approved changes...{Colors.RESET}\n")
+    print_header(f"Applying {len(ops)} Approved Deltas")
     for op in ops:
         rel_path = os.path.relpath(op.path, FOUNDATION_ROOT) if op.path else "N/A"
         try:
             apply_single_operation(op)
             status_symbol = f"{Colors.GREEN}[✓]{Colors.RESET}"
-            error_msg = ""
+            error_msg = "" 
         except Exception as e:
             status_symbol = f"{Colors.RED}[✗]{Colors.RESET}"
             error_msg = f" {Colors.RED}({e}){Colors.RESET}"
 
-        eprint(f"  {Colors.CYAN}[∆] {op.index}:{Colors.RESET} {Colors.CYAN}{op.action or 'N/A'}{Colors.RESET} ... {status_symbol}{error_msg}")
-        eprint(f"      {Colors.GREY}↳ {Colors.PURPLE}{rel_path}{Colors.RESET}")
-
+        line_text = f"Delta {op.index}: {Colors.CYAN}{op.action or 'N/A'}{Colors.RESET} ... {status_symbol}{error_msg}"
+        print_line(line_text)
+        eprint(f"{Colors.GREY}│  ↳ {Colors.PURPLE}{rel_path}{Colors.RESET}")

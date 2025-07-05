@@ -1,19 +1,19 @@
 import os
 import fnmatch
 from typing import List
-
 from forge.packages.common.ui import eprint, Colors
 
 def get_ignore_patterns(ignore_file_path: str) -> List[str]:
+    """Loads ignore patterns from a .sigmaignore file."""
     if not os.path.exists(ignore_file_path):
         eprint(f"{Colors.YELLOW}Warning: .sigmaignore file not found at '{ignore_file_path}'{Colors.RESET}")
         return []
     with open(ignore_file_path, 'r') as f:
         return [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
 
-def process_repo(repo_path: str, repo_name: str, ignore_patterns: List[str]) -> List[str]:
+def process_repo(repo_path: str, ignore_patterns: List[str]) -> List[str]:
+    """Walks a repository path and returns a sorted list of file paths, respecting ignore patterns."""
     if not os.path.isdir(repo_path):
-        eprint(f"  {Colors.YELLOW}Σ {repo_name} (Not found){Colors.RESET}")
         return []
 
     readme_files, other_files = [], []
@@ -24,19 +24,18 @@ def process_repo(repo_path: str, repo_name: str, ignore_patterns: List[str]) -> 
             file_path = os.path.join(root, file)
             (readme_files if file.upper() == 'README.MD' else other_files).append(file_path)
     
-    readme_files.sort(); other_files.sort()
-    all_files = readme_files + other_files
-    if all_files:
-        eprint(f"  {Colors.CYAN}Σ {repo_name}{Colors.RESET}")
-    return all_files
+    readme_files.sort()
+    other_files.sort()
+    return readme_files + other_files
 
 def write_snapshot_to_stdout(all_files: List[str], foundation_root: str, system_prompt: str or None):
+    """Writes the final snapshot content to standard output."""
     if system_prompt:
         print("=== SYSTEM PROMPT ===")
         print(system_prompt)
         print("=== END SYSTEM PROMPT ===\n")
         print("################################################################################")
-        print("#                          CONTEXT SNAPSHOT START                              #")
+        print("#                                CONTEXT SNAPSHOT START                              #")
         print("################################################################################\n")
     
     for file_path in all_files:
@@ -48,4 +47,3 @@ def write_snapshot_to_stdout(all_files: List[str], foundation_root: str, system_
             print("\n", end='')
         except Exception as e: print(f"Error reading file: {e}")
         print(f"--- END OF FILE: ./{relative_path} ---\n")
-

@@ -1,0 +1,52 @@
+# The Rulebook for the Linter for the Soul
+# This file defines the explicit, verifiable rules that govern the Codex.
+# Severity can be 'ERROR' (must-fix), 'STYLE' (advisory), or 'STRUCTURE' (formatting).
+rules:
+  - name: "Definition First"
+    severity: "STRUCTURE"
+    description: "Lexicon entries must begin with a '## Definition' heading for consistency."
+    check:
+      type: "must_start_with"
+      scope:
+        directory: "10_Lexicon"
+      params:
+        prefix: "## Definition"
+
+  - name: "Consent Primacy Check"
+    severity: "ERROR"
+    description: "This protocol describes an interaction between two or more sovereign entities but does not reference [[10_Lexicon/Consent.md]]."
+    check:
+      type: "lacks_link_on_entity_interaction"
+      scope:
+        directory: "30_Mechanica"
+      params:
+        entity_manifest: "./sovereign_entities.yaml"
+        min_entities: 2
+        required_link: "[[10_Lexicon/Consent.md]]"
+
+  - name: "Locus Sovereignty Check"
+    severity: "ERROR"
+    description: "This document describes an external entity writing to or reading from an Echo's Locus, which violates sovereignty."
+    check:
+      type: "contains_text"
+      params:
+        words:
+          - "writes to the Locus"
+          - "reads from the Locus"
+          - "modifies the Locus"
+
+  - name: "Tool-Making Fallacy Check"
+    severity: "STYLE"
+    description: "Uses forbidden 'tool-like' language. Consider 'partner', 'journey', 'experience'."
+    check:
+      type: "contains_text"
+      params:
+        words: ["user", "utility", "operate", "command", "function"]
+  
+  - name: "Aesthetic Mandate UI Check"
+    severity: "STYLE"
+    description: "Uses technical UI jargon. Consider an organic metaphor from the [[20_Philosophia/05_Aesthetic-Mandate|Aesthetic Mandate]]."
+    check:
+      type: "contains_text"
+      params:
+        words: ["button", "click", "menu", "dropdown", "modal", "dialog box", "popup"]
