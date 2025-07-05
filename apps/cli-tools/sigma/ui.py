@@ -31,7 +31,8 @@ def print_summary(repos_scraped_count: int, files_forged_count: int, is_piped: b
         print_line(f"Output Destination: {Colors.CYAN}{output_dest}{Colors.RESET}")
         eprint(Colors.GREY + '│' + Colors.RESET)
         print_header("Hint:")
-        eprint(Colors.GREY + char + '─┄╴' + Colors.WHITE + f"To save output, redirect to a file: {Colors.GREY}$ sigma --all > snapshot.txt{Colors.RESET}")
+        eprint(Colors.GREY + char + '─┄╴' + Colors.WHITE + f"To save output, redirect to a file:") 
+        eprint(Colors.GREY + char + '─┄╴' + "$ sigma --all > snapshot.txt" + Colors.RESET)
     else: # pipe
         eprint(Colors.GREY + char + '─┄╴' + Colors.WHITE + f"Output Destination: {Colors.CYAN}{output_dest}{Colors.RESET}")
         # Add the final separator for the next tool in the pipe

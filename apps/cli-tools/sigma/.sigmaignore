@@ -2,23 +2,21 @@
 .git
 
 # Python
-__pycache__/
+__pycache__
 *.pyc
 *.egg-info
-venv/
-.venv/
+venv
+.venv
 
 # IDE / Editor
-.vscode/
-.idea/
-.obsidian/
+.vscode
+.idea
+.obsidian
 
 # OS
 .DS_Store
 Thumbs.db
 
 # Build artifacts
-dist/
-build/
-
-
+dist
+build

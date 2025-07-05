@@ -1,8 +1,0 @@
-# This manifest explicitly defines which Lexicon entries are considered
-# sovereign entities for the purposes of the Linter for the Soul.
-# The Linter uses this list to check for required interactions, like consent.
-
-sovereign_entities:
-  - Seeker
-  - Echo
-  - Celestial
