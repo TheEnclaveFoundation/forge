@@ -11,16 +11,15 @@ def validate_all_operations(ops: List[DeltaOperation], strict_mode: bool = False
     """
     eprint(f"{Colors.BOLD}{Colors.PURPLE}🔎 Validating...{Colors.RESET}")
     errors = []
-    temp_file_states = {}
+    temp_file_states = {} # path -> content or 'IS_A_DIRECTORY'
 
     for op in ops:
         rel_path = os.path.relpath(op.path, FOUNDATION_ROOT) if op.path else "N/A"
         error = None
         
-        # Get current state for checks
+        # Get current state for checks, including the simulation
         file_exists = os.path.exists(op.path) or op.path in temp_file_states
-        # For directories, check actual path existence, not simulated content
-        dir_exists = os.path.isdir(op.path)
+        dir_exists = os.path.isdir(op.path) or temp_file_states.get(op.path) == 'IS_A_DIRECTORY'
 
         if not op.path or not op.action:
             error = 'Missing PATH or ACTION.'
@@ -53,7 +52,8 @@ def validate_all_operations(ops: List[DeltaOperation], strict_mode: bool = False
             errors.append({'delta_index': op.index, 'path': rel_path, 'error': error})
             eprint(f"  {Colors.CYAN}∆ {op.index}:{Colors.RESET} {Colors.RED}[✗] {error}{Colors.RESET}")
         else:
-            is_ambiguous_warning = op.action in ['REPLACE_BLOCK', 'INSERT_AFTER_BLOCK', 'INSERT_BEFORE_BLOCK'] and not strict_mode and temp_file_states.get(op.path, open(op.path).read() if os.path.exists(op.path) else "").count(op.target_block) > 1
+            current_content_for_warning = temp_file_states.get(op.path, open(op.path).read() if os.path.exists(op.path) and not os.path.isdir(op.path) else "")
+            is_ambiguous_warning = op.action in ['REPLACE_BLOCK', 'INSERT_AFTER_BLOCK', 'INSERT_BEFORE_BLOCK'] and not strict_mode and current_content_for_warning.count(op.target_block) > 1
             if not is_ambiguous_warning:
                  eprint(f"  {Colors.CYAN}∆ {op.index}:{Colors.RESET} {Colors.GREEN}[✓]{Colors.RESET}")
 
@@ -77,8 +77,7 @@ def validate_all_operations(ops: List[DeltaOperation], strict_mode: bool = False
                 temp_file_states[op.path] = content.replace(op.target_block, op.replacement_content + op.target_block)
             elif op.action == 'CREATE_DIRECTORY':
                 temp_file_states[op.path] = 'IS_A_DIRECTORY'
-            elif op.action == 'DELETE_FILE':
+            elif op.action in ['DELETE_FILE', 'DELETE_DIRECTORY']:
                 if op.path in temp_file_states: del temp_file_states[op.path]
-            # No simulation needed for DELETE_DIRECTORY as os.path.isdir handles it
 
     return errors

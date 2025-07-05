@@ -1,16 +1,4 @@
-import os
-import sys
-
-from .config import Colors
-
-def eprint(*args, **kwargs):
-    """Prints to stderr, respecting TTY color settings."""
-    print(*args, file=sys.stderr, **kwargs)
-
-def clear_screen():
-    """Clears the terminal screen if stderr is a TTY."""
-    if sys.stderr.isatty():
-        os.system('clear > /dev/tty')
+from forge.packages.common.ui import Colors, eprint, clear_screen
 
 def print_banner():
     """Prints the new minimal delta banner."""
