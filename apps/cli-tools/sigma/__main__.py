@@ -11,7 +11,7 @@ def main():
     foundation_root = os.environ.get("ENCLAVE_FOUNDATION_ROOT", os.path.expanduser("~/softrecursion/TheEnclaveFoundation"))
     
     parser = argparse.ArgumentParser(description="The Sigma tool generates a context snapshot.", add_help=False)
-    parser.add_argument('system_prompt', nargs='?', default=None)
+    parser.add_argument('--prompt-file', type=str, help="Path to a file containing the system prompt to prepend to the snapshot.")
     parser.add_argument('--all', action='store_true', help="Scrape all repositories.")
     parser.add_argument('--foundation', action='store_true')
     parser.add_argument('--codex', action='store_true')
@@ -21,6 +21,16 @@ def main():
     args = parser.parse_args()
 
     print_banner()
+    
+    system_prompt = None
+    if args.prompt_file:
+        try:
+            with open(args.prompt_file, 'r', encoding='utf-8') as f:
+                system_prompt = f.read()
+        except FileNotFoundError:
+            print_header("Error:")
+            eprint(Colors.GREY + '└─┄╴' + Colors.RED + f"Prompt file not found: {args.prompt_file}" + Colors.RESET)
+            return
 
     repos_to_scrape = []
     if args.all: repos_to_scrape = ['foundation', 'codex', 'specs', 'forge']
@@ -50,7 +60,7 @@ def main():
     is_piped = not sys.stdout.isatty()
     
     if is_piped:
-        write_snapshot_to_stdout(all_files_to_process, foundation_root, args.system_prompt)
+        write_snapshot_to_stdout(all_files_to_process, foundation_root, system_prompt)
     
     print_summary(len(repos_to_scrape), len(all_files_to_process), is_piped)
 

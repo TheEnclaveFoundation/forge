@@ -20,3 +20,7 @@ Thumbs.db
 # Build artifacts
 dist
 build
+
+# Enclave-Specific
+# Exclude the prompt library from general snapshots
+prompts/

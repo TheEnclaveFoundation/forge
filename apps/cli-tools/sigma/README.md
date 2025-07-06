@@ -8,10 +8,9 @@ To scrape all repositories and save the output to a file:
 ```bash
 sigma --all > snapshot.txt
 ```
-To scrape a specific repository (e.g., `forge`):
+To prepend a system prompt from a file and scrape a specific repository (e.g., `codex`):
 ```bash
-sigma --forge > forge_snapshot.txt
+sigma --prompt-file ./path/to/my_prompt.txt --codex > codex_snapshot_with_prompt.txt
 ```
 The tool respects a `.sigmaignore` file located in its directory to exclude certain files and folders from the snapshot.
-
 For more detailed information, see the full **[Sigma Documentation](../../../docs/Sigma.md)**.
