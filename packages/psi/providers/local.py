@@ -1,17 +1,20 @@
 # This module contains the logic for interacting with a local LLM endpoint.
 import requests
 import json
+import os
 
-def get_response(content: str, system_prompt: str, endpoint_url: str) -> dict:
+def get_response(content: str, system_prompt: str, model_name: str) -> dict:
     """
     Sends a request to a local LLM API endpoint and returns the response.
+    It is responsible for retrieving its own endpoint URL from the environment.
     """
+    endpoint_url = os.getenv("LOCAL_MODEL_ENDPOINT")
+    if not endpoint_url:
+        return {"error": "LOCAL_MODEL_ENDPOINT not found in environment or .env file."}
+
     headers = {"Content-Type": "application/json"}
-    
-    # This payload structure is a common format for local models.
-    # It may need to be adjusted based on the specific API of the local server.
     payload = {
-        "model": "local-model", # The model name is often required, even if it's just one
+        "model": model_name,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": content}
@@ -21,11 +24,11 @@ def get_response(content: str, system_prompt: str, endpoint_url: str) -> dict:
 
     try:
         response = requests.post(endpoint_url, headers=headers, data=json.dumps(payload), timeout=120)
-        response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
+        response.raise_for_status()
+        # Assume the local endpoint returns a structure we can use directly.
+        # If not, this is where we would standardize it.
         return response.json()
-
     except requests.exceptions.RequestException as e:
-        # This will catch connection errors, timeouts, etc.
         return {
             "error": "Failed to connect to local model endpoint.",
             "details": str(e)
