@@ -6,7 +6,8 @@ import time
 from typing import Dict, Any
 
 # --- Configuration ---
-CACHE_DIR = os.path.join(os.path.dirname(__file__), '..', '.cache', 'psi')
+# Correctly navigate two levels up to place .cache in the forge root
+CACHE_DIR = os.path.join(os.path.dirname(__file__), '..', '..', '.cache', 'psi')
 CACHE_TTL_SECONDS = 60 * 60 * 24 * 7 # 7 days
 
 # --- Internal Functions ---
@@ -38,16 +39,19 @@ def get_cached_response(content: str, system_prompt: str, model_name: str) -> Di
         with open(path, 'r', encoding='utf-8') as f:
             cached_data = json.load(f)
         
+        # Check if the cache entry has expired
         is_expired = (time.time() - cached_data.get('timestamp', 0)) > CACHE_TTL_SECONDS
         if is_expired:
-            os.remove(path) 
+            os.remove(path) # Prune expired cache entry
             return None
             
+        # Return the actual response, adding a metadata key for clarity
         response = cached_data.get('response', {})
         response['__cache_hit'] = True
         return response
 
     except (json.JSONDecodeError, IOError):
+        # If the file is corrupted or unreadable, treat it as a cache miss
         return None
 
 def set_cached_response(content: str, system_prompt: str, model_name: str, response: Dict[str, Any]):
@@ -55,9 +59,9 @@ def set_cached_response(content: str, system_prompt: str, model_name: str, respo
     key = _get_cache_key(content, system_prompt, model_name)
     path = _get_cache_path(key)
 
+    # Ensure the subdirectory exists
     os.makedirs(os.path.dirname(path), exist_ok=True)
 
-    # The 'response' object itself now contains the usage data from the provider
     cache_data = {
         'timestamp': time.time(),
         'model_name': model_name,
@@ -68,4 +72,5 @@ def set_cached_response(content: str, system_prompt: str, model_name: str, respo
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(cache_data, f, indent=2)
     except IOError:
+        # Fail silently if cache writing fails
         pass
