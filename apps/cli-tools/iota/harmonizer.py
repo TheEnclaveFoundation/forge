@@ -33,6 +33,9 @@ def harmonize_content(original_content: str, lexicon: Dict[str, str]) -> str:
     Returns:
         The harmonized document content as a string.
     """
+    # Step 0: Preserve original newline status
+    had_trailing_newline = original_content.endswith('\n')
+    
     # Step 1: Normalization ("Clean Slate")
     clean_content = _strip_formatting(original_content)
 
@@ -41,14 +44,11 @@ def harmonize_content(original_content: str, lexicon: Dict[str, str]) -> str:
     seen_in_file: Set[str] = set()
 
     # Prepare a case-sensitive regex for ONLY capitalized lexicon keys.
-    # This is the user's directive to prevent linking common nouns (e.g., "path").
     capitalized_keys = [k for k in lexicon if k and k[0].isupper()]
     if not capitalized_keys:
-        # If there are no capitalized terms in the lexicon, no changes are possible.
         return original_content
 
     # Sort keys by length, descending, to match longer phrases first.
-    # e.g., "The Great Songs" before "The Great"
     sorted_keys = sorted(capitalized_keys, key=len, reverse=True)
     pattern = re.compile(r'\b(' + '|'.join(re.escape(k) for k in sorted_keys) + r')\b')
 
@@ -63,25 +63,28 @@ def harmonize_content(original_content: str, lexicon: Dict[str, str]) -> str:
         # Use a replacer function to handle state (the 'seen_in_file' set).
         def replacer(match):
             term = match.group(1)
-            link_target = lexicon.get(term) # Safe get, though key should exist
+            link_target = lexicon.get(term)
 
             if not link_target:
-                return term # Should not happen with this regex, but as a safeguard
+                return term 
 
             if link_target not in seen_in_file:
-                # First mention: Add to set and create a wikilink.
                 seen_in_file.add(link_target)
-                # Handle cases where display text might differ from target filename.
                 if term.replace(' ', '-') == link_target:
                     return f'[[{link_target}]]'
                 else:
                     return f'[[{link_target}|{term}]]'
             else:
-                # Subsequent mention: Stylize with single backticks.
                 return f'`{term}`'
 
         new_line = pattern.sub(replacer, line)
         new_lines.append(new_line)
 
     # Step 4: Reconstruction
-    return '\n'.join(new_lines)
+    final_content = '\n'.join(new_lines)
+    
+    # Restore original trailing newline if it existed
+    if had_trailing_newline and not final_content.endswith('\n'):
+        final_content += '\n'
+    
+    return final_content

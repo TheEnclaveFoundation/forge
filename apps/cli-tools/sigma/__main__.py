@@ -13,10 +13,10 @@ def main():
     parser = argparse.ArgumentParser(description="The Sigma tool generates a context snapshot.", add_help=False)
     parser.add_argument('--prompt-file', type=str, help="Path to a file containing the system prompt to prepend to the snapshot.")
     parser.add_argument('--all', action='store_true', help="Scrape all repositories.")
-    parser.add_argument('--foundation', action='store_true')
-    parser.add_argument('--codex', action='store_true')
-    parser.add_argument('--specs', action='store_true')
-    parser.add_argument('--forge', action='store_true')
+    parser.add_argument('--foundation', action='store_true', help="Scrape the 'foundation' repository.")
+    parser.add_argument('--mycelium', action='store_true', help="Scrape the 'mycelium' repository.")
+    parser.add_argument('--specs', action='store_true', help="Scrape the 'specs' repository.")
+    parser.add_argument('--forge', action='store_true', help="Scrape the 'forge' repository.")
     parser.add_argument('--help', action='help', help='Show this help message and exit')
     args = parser.parse_args()
 
@@ -33,10 +33,10 @@ def main():
             return
 
     repos_to_scrape = []
-    if args.all: repos_to_scrape = ['foundation', 'codex', 'specs', 'forge']
+    if args.all: repos_to_scrape = ['foundation', 'mycelium', 'specs', 'forge']
     else:
         if args.foundation: repos_to_scrape.append('foundation')
-        if args.codex: repos_to_scrape.append('codex')
+        if args.mycelium: repos_to_scrape.append('mycelium')
         if args.specs: repos_to_scrape.append('specs')
         if args.forge: repos_to_scrape.append('forge')
 

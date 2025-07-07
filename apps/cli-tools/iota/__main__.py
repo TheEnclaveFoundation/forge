@@ -37,7 +37,7 @@ def main():
         '--foundation', action='store_true', help="Harmonize the 'foundation' repository."
     )
     parser.add_argument(
-        '--codex', action='store_true', help="Harmonize the 'codex' repository."
+        '--mycelium', action='store_true', help="Harmonize the 'mycelium' repository."
     )
     parser.add_argument(
         '--specs', action='store_true', help="Harmonize the 'specs' repository."
@@ -58,10 +58,10 @@ def main():
 
     repos_to_scan_names = []
     if args.all:
-        repos_to_scan_names = ['foundation', 'codex', 'specs', 'forge']
+        repos_to_scan_names = ['foundation', 'mycelium', 'specs', 'forge']
     else:
         if args.foundation: repos_to_scan_names.append('foundation')
-        if args.codex: repos_to_scan_names.append('codex')
+        if args.mycelium: repos_to_scan_names.append('mycelium')
         if args.specs: repos_to_scan_names.append('specs')
         if args.forge: repos_to_scan_names.append('forge')
 
@@ -76,11 +76,11 @@ def main():
 
     # 1. Build the Lexicon Index
     lexicon = build_lexicon_index(repo_paths)
-    print_line(f"Lexicon Index built with {Colors.PURPLE}{len(lexicon)}{Colors.RESET} terms.")
+    print_line(f"Lexicon Index built with {len(lexicon)} terms.")
 
     # 2. Gather all markdown files to process
     files_to_process = get_all_markdown_files(repo_paths)
-    print_line(f"Found {Colors.PURPLE}{len(files_to_process)}{Colors.RESET} markdown files to scan.")
+    print_line(f"Found {len(files_to_process)} markdown files to scan.")
 
     # 3. Process each file and generate manifests if needed
     manifests_generated = 0
@@ -101,9 +101,9 @@ def main():
 
     # 4. Final Summary Report
     if args.check and manifests_generated > 0:
-        print_line(f"Found {Colors.PURPLE}{manifests_generated}{Colors.RESET} files that need harmonization.")
+        print_line(f"Found {manifests_generated} files that need harmonization.")
     elif not args.check:
-        print_line(f"Generated {Colors.PURPLE}{manifests_generated}{Colors.RESET} Delta Manifests.")
+        print_line(f"Generated {manifests_generated} Delta Manifests.")
 
     print_end_line("Scan complete.")
 
