@@ -1,0 +1,20 @@
+# This file defines the available LLM providers and their specific models
+# that the 'psi' tool can use. The '--model' flag will select an entry
+# from this list.
+
+google:
+  - model_name: "gemini-1.5-pro"
+    description: "Google's most capable, multimodal model, suitable for complex reasoning."
+    # Future metadata could include context window size, cost per token, etc.
+  - model_name: "gemini-1.5-flash"
+    description: "A lighter-weight, speed-optimized version of Gemini Pro."
+
+openai:
+  - model_name: "gpt-4o"
+    description: "OpenAI's latest, most advanced multimodal model."
+  - model_name: "gpt-3.5-turbo"
+    description: "A fast and cost-effective model for simpler tasks."
+
+local:
+  - model_name: "llama3-8b-instruct"
+    description: "A capable, locally-run instruction-tuned model."
