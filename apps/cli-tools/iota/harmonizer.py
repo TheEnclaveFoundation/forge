@@ -5,85 +5,95 @@
 # according to the rules.
 
 import re
-from typing import Dict, Set
+import os
+from typing import Dict, Set, List
 
 def _strip_formatting(content: str) -> str:
     """
     Strips all existing wikilinks and single backticks to create a "clean slate".
     """
-    # First, strip wikilinks, preserving their display text.
-    # This handles both [[Target]] and [[Target|Display Text]] formats.
     def wikilink_replacer(match):
         return match.group(2) if match.group(2) else match.group(1)
     content = re.sub(r'\[\[([^|\]]+)(?:\|([^\]]+))?\]\]', wikilink_replacer, content)
-
-    # Then, strip any remaining single-backtick emphasis.
     content = re.sub(r'`([^`\n]+)`', r'\1', content)
     return content
 
-def harmonize_content(original_content: str, lexicon: Dict[str, str]) -> str:
+def harmonize_content(original_content: str, lexicon: Dict[str, str], principles: List[str]) -> str:
     """
     Applies the "one concept, one primary link" rule to a string of document content.
-    This is the primary function that orchestrates the new, robust algorithm.
-
-    Args:
-        original_content: The raw text of the document.
-        lexicon: A dictionary mapping search terms to their canonical link targets.
-
-    Returns:
-        The harmonized document content as a string.
     """
-    # Step 0: Preserve original newline status
     had_trailing_newline = original_content.endswith('\n')
-    
-    # Step 1: Normalization ("Clean Slate")
     clean_content = _strip_formatting(original_content)
-
     lines = clean_content.splitlines()
     new_lines = []
     seen_in_file: Set[str] = set()
 
-    # Prepare a case-sensitive regex for ONLY capitalized lexicon keys.
-    capitalized_keys = [k for k in lexicon if k and k[0].isupper()]
-    if not capitalized_keys:
-        return original_content
+    # Sort all lexicon keys by length, descending, to match longest phrases first.
+    all_concepts_sorted = sorted(lexicon.keys(), key=len, reverse=True)
+    
+    # Create a single, powerful regex pattern from the sorted list of all concepts.
+    # We will handle case-sensitivity in the replacement logic.
+    master_pattern_str = r'\b(' + '|'.join(re.escape(k) for k in all_concepts_sorted) + r')\b'
+    master_pattern = re.compile(master_pattern_str, re.IGNORECASE)
+    
+    principle_terms_lower = {p.lower() for p in principles}
 
-    # Sort keys by length, descending, to match longer phrases first.
-    sorted_keys = sorted(capitalized_keys, key=len, reverse=True)
-    pattern = re.compile(r'\b(' + '|'.join(re.escape(k) for k in sorted_keys) + r')\b')
-
-    # Steps 2 & 3: Protection and Harmonization (Line by Line)
     for line in lines:
         stripped_line = line.strip()
-        # Protect headings and the 'Type:' line from any changes.
-        if stripped_line.startswith('#') or stripped_line.startswith('Type:'):
+        # Protect headings, Type lines, and list items
+        if stripped_line.startswith(('#', '**Type:**', '-', '*')):
             new_lines.append(line)
             continue
-
-        # Use a replacer function to handle state (the 'seen_in_file' set).
-        def replacer(match):
+        
+        replacements = {}
+        
+        # Find all possible matches on the line
+        for match in master_pattern.finditer(line):
             term = match.group(1)
-            link_target = lexicon.get(term)
+            
+            is_principle = term.lower() in principle_terms_lower
+            is_capitalized = term[0].isupper()
 
-            if not link_target:
-                return term 
+            # The rule: link if it's a Principle (any case) OR if it's another concept that is capitalized.
+            if is_principle or is_capitalized:
+                start, end = match.start(), match.end()
+                
+                is_substring = any(start >= r_start and end <= r_end for r_start, r_end, _ in replacements.values())
+                if is_substring:
+                    continue
 
-            if link_target not in seen_in_file:
-                seen_in_file.add(link_target)
-                if term.replace(' ', '-') == link_target:
-                    return f'[[{link_target}]]'
-                else:
-                    return f'[[{link_target}|{term}]]'
-            else:
-                return f'`{term}`'
+                lookup_term = term.title() if is_principle else term
+                link_target = lexicon.get(lookup_term)
 
-        new_line = pattern.sub(replacer, line)
-        new_lines.append(new_line)
+                if link_target:
+                    # Check if the match is inside a bolded section
+                    # Find all bold sections on the line
+                    is_in_bold = False
+                    for bold_match in re.finditer(r'\*\*(.*?)\*\*', line):
+                        if match.start() > bold_match.start() and match.end() < bold_match.end():
+                            is_in_bold = True
+                            break
+                    if is_in_bold:
+                        continue
 
-    # Step 4: Reconstruction
+                    if link_target not in seen_in_file:
+                        seen_in_file.add(link_target)
+                        replacement_text = f'[[{link_target}|{term}]]'
+                    else:
+                        replacement_text = f'`{term}`'
+                    
+                    replacements[start] = (start, end, replacement_text)
+
+        # Apply replacements from last to first to not mess up indices
+        new_line = list(line)
+        for start_index in sorted(replacements.keys(), reverse=True):
+            start, end, text = replacements[start_index]
+            new_line[start:end] = list(text)
+        
+        new_lines.append("".join(new_line))
+
+    # --- Reconstruction ---
     final_content = '\n'.join(new_lines)
-    
-    # Restore original trailing newline if it existed
     if had_trailing_newline and not final_content.endswith('\n'):
         final_content += '\n'
     
