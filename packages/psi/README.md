@@ -2,8 +2,11 @@
 
 The `psi` package is designed to interact with a high-capability LLM to provide nuanced, qualitative judgment on linter reports or other analysis tasks. It serves as the "Oracle" or "Philosopher" stage of the **[Integrated Adherence Protocol](../../../docs/Integrated-Adherence-Protocol.md)**.
 
-**Status:** Specified, Not Implemented
+**Status:** Operational (v1.0 - Mocked API)
 
-Its purpose is to filter false positives from the `lambda` linter's report and assess content against more subtle principles, such as the Aesthetic Mandate.
+## Basic Usage
 
-*(Full documentation will be available upon implementation.)*
+`psi` is designed to be used as a library or within a shell pipe. To get a judgment on a piece of text:
+```bash
+cat some_text.txt | python3 -m forge.packages.psi.main --prompt-file ./path/to/prompt.txt
+```
