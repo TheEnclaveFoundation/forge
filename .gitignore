@@ -81,3 +81,8 @@ Desktop.ini
 
 # Obsidian
 .obsidian/
+
+
+### Enclave-Specific ###
+# Cache directories
+.cache/
