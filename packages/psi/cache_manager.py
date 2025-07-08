@@ -9,6 +9,7 @@ from typing import Dict, Any
 # Correctly navigate two levels up to place .cache in the forge root
 CACHE_DIR = os.path.join(os.path.dirname(__file__), '..', '..', '.cache', 'psi')
 CACHE_TTL_SECONDS = 60 * 60 * 24 * 7 # 7 days
+CACHE_SCHEMA_VERSION = "1.1"
 
 # --- Internal Functions ---
 
@@ -39,6 +40,10 @@ def get_cached_response(content: str, system_prompt: str, model_name: str) -> Di
         with open(path, 'r', encoding='utf-8') as f:
             cached_data = json.load(f)
         
+        # Check for schema version compatibility
+        if cached_data.get("cache_schema_version") != CACHE_SCHEMA_VERSION:
+            return None
+
         # Check if the cache entry has expired
         is_expired = (time.time() - cached_data.get('timestamp', 0)) > CACHE_TTL_SECONDS
         if is_expired:
@@ -54,8 +59,8 @@ def get_cached_response(content: str, system_prompt: str, model_name: str) -> Di
         # If the file is corrupted or unreadable, treat it as a cache miss
         return None
 
-def set_cached_response(content: str, system_prompt: str, model_name: str, response: Dict[str, Any]):
-    """Saves a response to the cache."""
+def set_cached_response(content: str, system_prompt: str, model_name: str, response: Dict[str, Any], prompt_file_path: str):
+    """Saves a response to the cache with extra metadata."""
     key = _get_cache_key(content, system_prompt, model_name)
     path = _get_cache_path(key)
 
@@ -63,6 +68,8 @@ def set_cached_response(content: str, system_prompt: str, model_name: str, respo
     os.makedirs(os.path.dirname(path), exist_ok=True)
 
     cache_data = {
+        "cache_schema_version": CACHE_SCHEMA_VERSION,
+        "prompt_identifier": prompt_file_path,
         'timestamp': time.time(),
         'model_name': model_name,
         'response': response

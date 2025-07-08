@@ -81,9 +81,9 @@ def main():
     
     result = provider_module.get_response(content_to_analyze, system_prompt, args.model)
     
-    # 3. Cache the new response
+    # 3. Cache the new response, now including the prompt file path
     if not args.no_cache and not result.get('error'):
-        cache_manager.set_cached_response(content_to_analyze, system_prompt, args.model, result)
+        cache_manager.set_cached_response(content_to_analyze, system_prompt, args.model, result, args.prompt_file)
 
     # Print the final result to stdout
     print(json.dumps(result, indent=2))
