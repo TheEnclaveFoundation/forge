@@ -78,7 +78,6 @@ def run_transaction(approved_ops: list):
         color = "red"
 
     loom.render([
-        {"type": "banner", "symbol": "∆", "color": "cyan"},
         {"type": "group", "title": title, "items": summary_items},
         {"type": "end", "text": end_text, "color": color}
     ])
@@ -88,6 +87,7 @@ def main():
     parser.add_argument('--dry-run', action='store_true', help="Validate and show all diffs without applying changes.")
     parser.add_argument('--strict', action='store_true', help="Parser warnings and ambiguous blocks become fatal errors.")
     parser.add_argument('--transaction', action='store_true', help="Apply all approved changes as a single, atomic transaction.")
+    parser.add_argument('-y', '--yes', action='store_true', help="Automatically approve and apply all operations without a prompt.")
     args = parser.parse_args()
 
     manifest_text = sys.stdin.read()
@@ -122,40 +122,46 @@ def main():
         run_dry_run(operations)
         return
 
-    # --- Interactive Approval Loop ---
-    loom.render([{"type": "banner", "symbol": "∆", "color": "cyan"}])
-    approved_ops, apply_all, skipped_count = [], False, 0
-    try:
-        with open('/dev/tty') as tty:
-            for op in operations:
-                diff_text = "".join(generate_diff_text(op))
-                render_plan = [
-                    {"type": "group", "title": f"Reviewing Delta {op.index} of {len(operations)}", "items": [
-                        {"key": "Action", "value": op.action},
-                        {"key": "Path", "value": os.path.relpath(op.path, FOUNDATION_ROOT) if op.path else 'N/A'}
-                    ]},
-                    {"type": "prose", "title": "Diff", "text": diff_text}
-                ]
-                loom.render(render_plan)
+    # --- Approval Step ---
+    approved_ops = []
+    skipped_count = 0
+    if args.yes:
+        approved_ops = operations
+    else:
+        # --- Interactive Approval Loop ---
+        loom.render([{"type": "banner", "symbol": "∆", "color": "cyan"}])
+        apply_all = False
+        try:
+            with open('/dev/tty') as tty:
+                for op in operations:
+                    diff_text = "".join(generate_diff_text(op))
+                    render_plan = [
+                        {"type": "group", "title": f"Reviewing Delta {op.index} of {len(operations)}", "items": [
+                            {"key": "Action", "value": op.action},
+                            {"key": "Path", "value": os.path.relpath(op.path, FOUNDATION_ROOT) if op.path else 'N/A'}
+                        ]},
+                        {"type": "prose", "title": "Diff", "text": diff_text}
+                    ]
+                    loom.render(render_plan)
 
-                if apply_all:
-                    loom.eprint(f"{Colors.GREY}├─┄╴{Colors.GREEN}Applying automatically...{Colors.RESET}")
-                    approved_ops.append(op)
-                    continue
+                    if apply_all:
+                        loom.eprint(f"{Colors.GREY}├─┄╴{Colors.GREEN}Applying automatically...{Colors.RESET}")
+                        approved_ops.append(op)
+                        continue
 
-                loom.eprint(f"{Colors.GREY}├─┄╴{Colors.YELLOW}Apply this change? [y/n/a/q] {Colors.RESET} ", end='')
-                sys.stderr.flush()
-                confirm = tty.readline().strip().lower()
-                
-                if confirm == 'y': approved_ops.append(op)
-                elif confirm == 'a': apply_all = True; approved_ops.append(op)
-                elif confirm == 'q': skipped_count = len(operations) - len(approved_ops); break
-                else: skipped_count += 1
-    except (KeyboardInterrupt, EOFError):
-        loom.eprint("\n\nOperation cancelled by user.")
-        skipped_count = len(operations) - len(approved_ops)
-    except OSError:
-         loom.render(build_error_plan("Could not open controlling terminal. Use --dry-run or pipe from a file."))
+                    loom.eprint(f"{Colors.GREY}├─┄╴{Colors.YELLOW}Apply this change? [y/n/a/q] {Colors.RESET} ", end='')
+                    sys.stderr.flush()
+                    confirm = tty.readline().strip().lower()
+                    
+                    if confirm == 'y': approved_ops.append(op)
+                    elif confirm == 'a': apply_all = True; approved_ops.append(op)
+                    elif confirm == 'q': skipped_count = len(operations) - len(approved_ops); break
+                    else: skipped_count += 1
+        except (KeyboardInterrupt, EOFError):
+            loom.eprint("\n\nOperation cancelled by user.")
+            skipped_count = len(operations) - len(approved_ops)
+        except OSError:
+             loom.render(build_error_plan("Could not open controlling terminal. Use --dry-run or pipe from a file."))
 
     # --- Final Application Step ---
     if approved_ops:
