@@ -5,6 +5,17 @@ import json
 from forge.packages.common.ui import eprint, Colors
 import pathspec
 
+def is_binary_file(filepath: str) -> bool:
+    """
+    Heuristic to check if a file is binary by checking for null bytes.
+    """
+    try:
+        with open(filepath, 'rb') as f:
+            chunk = f.read(1024) # Read the first 1KB
+            return b'\x00' in chunk
+    except IOError:
+        return False
+
 def get_ignore_patterns(ignore_file_path: str) -> List[str]:
     """Loads global ignore patterns from a .sigmaignore file."""
     if not os.path.exists(ignore_file_path):
@@ -29,15 +40,14 @@ def process_repo(repo_path: str, global_ignore_patterns: List[str]) -> List[str]
         
         spec = pathspec.PathSpec.from_lines('gitwildmatch', current_spec_lines)
 
-        # Build relative paths for matching
         relative_root = os.path.relpath(root, repo_path)
-        if relative_root == '.': relative_root = '' # Avoid './' prefix for top-level files
+        if relative_root == '.': relative_root = ''
 
-        paths_to_check_dirs = [os.path.join(relative_root, d) for d in dirs]
+        paths_to_check_dirs = [os.path.join(relative_root, d).replace('\\', '/') for d in dirs]
         ignored_dirs = set(os.path.basename(p) for p in spec.match_files(paths_to_check_dirs))
         dirs[:] = [d for d in dirs if d not in ignored_dirs]
 
-        paths_to_check_files = [os.path.join(relative_root, f) for f in files]
+        paths_to_check_files = [os.path.join(relative_root, f).replace('\\', '/') for f in files]
         ignored_files = set(os.path.basename(p) for p in spec.match_files(paths_to_check_files))
         
         for file in files:
@@ -62,26 +72,33 @@ def write_snapshot_to_stdout(all_files: List[str], foundation_root: str, system_
         print("################################################################################\n")
     
     for file_path in all_files:
-        relative_path = os.path.relpath(file_path, foundation_root)
+        relative_path = os.path.relpath(file_path, foundation_root).replace('\\', '/')
         print(f"--- START OF FILE: ./{relative_path} ---")
-        try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f_in:
-                print(f_in.read(), end='')
-            print("\n", end='')
-        except Exception as e: 
-            print(f"Error reading file: {e}")
-        print(f"--- END OF FILE: ./{relative_path} ---\n")
+        
+        if is_binary_file(file_path):
+            print("[Binary file content suppressed]")
+        else:
+            try:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f_in:
+                    print(f_in.read(), end='')
+            except Exception as e: 
+                print(f"Error reading file: {e}")
+
+        print("\n--- END OF FILE: ./{relative_path} ---\n")
 
 def write_json_snapshot_to_stdout(all_files: List[str], foundation_root: str):
     """Writes the final snapshot content to standard output in JSON format."""
     snapshot_data = {}
     for file_path in all_files:
-        # Use consistent forward slashes for JSON keys
         relative_path = os.path.relpath(file_path, foundation_root).replace('\\', '/')
-        try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f_in:
-                snapshot_data[relative_path] = f_in.read()
-        except Exception as e:
-            snapshot_data[relative_path] = f"Error reading file: {e}"
+        
+        if is_binary_file(file_path):
+            snapshot_data[relative_path] = "[Binary file content suppressed]"
+        else:
+            try:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f_in:
+                    snapshot_data[relative_path] = f_in.read()
+            except Exception as e:
+                snapshot_data[relative_path] = f"Error reading file: {e}"
     
     print(json.dumps(snapshot_data, indent=2))
