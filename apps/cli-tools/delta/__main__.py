@@ -4,32 +4,47 @@ import sys
 import json
 import argparse
 import os
+from typing import List
 
 from .config import FOUNDATION_ROOT
 from .parser import parse_manifest
 from .validation import validate_all_operations
 from .filesystem import apply_operations
 from .diff import generate_diff_text
-from forge.packages.common.ui import eprint, Colors
-from .ui import print_banner, print_review_header, print_final_summary, print_separator, print_line, print_header
+from forge.packages.common import ui as loom
+from forge.packages.common.ui import Colors
+
+def build_error_plan(error_message: str) -> List[dict]:
+    """Builds a render plan for a simple error message."""
+    return [
+        {"type": "banner", "symbol": "∆", "color": "cyan"},
+        {"type": "group", "title": "Error", "items": [
+            {"key": "Message", "value": error_message}
+        ]},
+        {"type": "end", "text": "Operation aborted.", "color": "red"}
+    ]
 
 def run_dry_run(operations: list):
     """Executes a dry run, showing diffs without applying changes."""
-    for op in operations:
-        print_separator()
-        print_review_header(op.index, len(operations), op.action, os.path.relpath(op.path, FOUNDATION_ROOT) if op.path else 'N/A')
-        for line in generate_diff_text(op):
-            color = Colors.GREEN if line.startswith('+') else Colors.RED if line.startswith('-') else Colors.CYAN if line.startswith('@@') else Colors.GREY
-            eprint(f"{Colors.GREY}│{Colors.RESET} {color}{line.strip()}{Colors.RESET}")
-        
-        if op.index < len(operations):
-            print_separator()
-            input(f"{Colors.GREY}├─┄╴{Colors.YELLOW}Press Enter to view next Delta...{Colors.RESET}")
+    loom.render([{"type": "banner", "symbol": "∆", "color": "cyan"}])
     
-    print_separator()
-    print_header("Dry Run Complete")
-    print_line(f"{Colors.PURPLE}No changes were made to the filesystem.{Colors.RESET}", prefix="└─┄╴")
+    for op in operations:
+        diff_text = "".join(generate_diff_text(op))
+        render_plan = [
+            {"type": "group", "title": f"Dry Run: Delta {op.index} of {len(operations)}", "items": [
+                {"key": "Action", "value": op.action},
+                {"key": "Path", "value": os.path.relpath(op.path, FOUNDATION_ROOT) if op.path else 'N/A'}
+            ]},
+            {"type": "prose", "title": "Diff", "text": diff_text}
+        ]
+        if op.index < len(operations):
+             render_plan.append({"type": "end", "text": "Press Enter to view next Delta..."})
+        
+        loom.render(render_plan)
+        if op.index < len(operations):
+            input()
 
+    loom.render([{"type": "end", "text": "Dry Run Complete. No changes were made.", "color": "yellow"}])
 
 def main():
     parser = argparse.ArgumentParser(description="The Delta tool applies structured changes to the filesystem.", formatter_class=argparse.RawTextHelpFormatter)
@@ -37,57 +52,61 @@ def main():
     parser.add_argument('--strict', action='store_true', help="Parser warnings and ambiguous blocks become fatal errors.")
     args = parser.parse_args()
 
-    # Print the one and only banner for the program's execution
-    print_banner()
-
     manifest_text = sys.stdin.read()
     if not manifest_text.strip():
-        print_header("Error")
-        print_line(f"{Colors.YELLOW}No input received. Exiting.{Colors.RESET}", prefix="└─┄╴")
+        loom.render(build_error_plan("No input received from stdin."))
         return
         
     try:
         operations = parse_manifest(manifest_text, strict_mode=args.strict)
     except ValueError as e:
-        print_header("Error")
-        print_line(f"{Colors.RED}Error parsing manifest: {e}{Colors.RESET}", prefix="└─┄╴")
+        loom.render(build_error_plan(f"Error parsing manifest: {e}"))
         sys.exit(1)
 
     if not operations:
-        print_header("Info")
-        print_line(f"{Colors.YELLOW}No valid Delta operations found.{Colors.RESET}", prefix="└─┄╴")
+        loom.render([
+            {"type": "banner", "symbol": "∆", "color": "cyan"},
+            {"type": "end", "text": "No valid Delta operations found.", "color": "yellow"}
+        ])
         return
     
     validation_errors = validate_all_operations(operations, strict_mode=args.strict)
     if validation_errors:
-        print_separator()
-        print_line(f"{Colors.RED}{Colors.BOLD}Validation failed. Aborting.{Colors.RESET}", prefix="└─┄╴")
-        if not sys.stdout.isatty(): print(json.dumps(validation_errors, indent=2))
+        error_items = [{"key": f"Delta {err['delta_index']}", "value": f"{err['path']} - {err['error']}"} for err in validation_errors]
+        loom.render([
+            {"type": "banner", "symbol": "∆", "color": "cyan"},
+            {"type": "group", "title": "Validation Failed", "items": error_items},
+            {"type": "end", "text": "Aborting.", "color": "red"}
+        ])
         sys.exit(1)
     
     if args.dry_run:
-        run_dry_run(operations); return
+        run_dry_run(operations)
+        return
 
+    # --- Interactive Approval Loop ---
+    loom.render([{"type": "banner", "symbol": "∆", "color": "cyan"}])
     approved_ops, apply_all, skipped_count = [], False, 0
     try:
         with open('/dev/tty') as tty:
             for op in operations:
-                print_separator()
-                print_review_header(op.index, len(operations), op.action, os.path.relpath(op.path, FOUNDATION_ROOT) if op.path else 'N/A')
-                
-                for line in generate_diff_text(op):
-                    color = Colors.GREEN if line.startswith('+') else Colors.RED if line.startswith('-') else Colors.CYAN if line.startswith('@@') else Colors.GREY
-                    eprint(f"{Colors.GREY}│{Colors.RESET} {color}{line.strip()}{Colors.RESET}")
-                
-                print_separator()
+                diff_text = "".join(generate_diff_text(op))
+                render_plan = [
+                    {"type": "group", "title": f"Reviewing Delta {op.index} of {len(operations)}", "items": [
+                        {"key": "Action", "value": op.action},
+                        {"key": "Path", "value": os.path.relpath(op.path, FOUNDATION_ROOT) if op.path else 'N/A'}
+                    ]},
+                    {"type": "prose", "title": "Diff", "text": diff_text}
+                ]
+                loom.render(render_plan)
 
                 if apply_all:
-                    print_line(f"{Colors.GREEN}Applying automatically...{Colors.RESET}")
+                    loom.eprint(f"{Colors.GREY}├─┄╴{Colors.GREEN}Applying automatically...{Colors.RESET}")
                     approved_ops.append(op)
                     continue
 
-                sys.stderr.write(f"{Colors.GREY}├─┄╴{Colors.YELLOW}Apply this change? [y/n/a/q] {Colors.RESET} ")
-                sys.stderr.flush()
+                loom.eprint(f"{Colors.GREY}├─┄╴{Colors.YELLOW}Apply this change? [y/n/a/q] {Colors.RESET} ", end='')
+                sys.stderr.flush() # Explicitly flush stderr to ensure prompt is visible
                 confirm = tty.readline().strip().lower()
                 
                 if confirm == 'y': approved_ops.append(op)
@@ -95,18 +114,34 @@ def main():
                 elif confirm == 'q': skipped_count = len(operations) - len(approved_ops); break
                 else: skipped_count += 1
     except (KeyboardInterrupt, EOFError):
-        eprint("\n\nOperation cancelled by user.")
+        loom.eprint("\n\nOperation cancelled by user.")
         skipped_count = len(operations) - len(approved_ops)
-    except OSError as e:
-        print_header("Error")
-        print_line(f"{Colors.RED}Could not open controlling terminal: {e}{Colors.RESET}", prefix="└─┄╴")
+    except OSError:
+         loom.render(build_error_plan("Could not open controlling terminal. Use --dry-run or pipe from a file."))
 
+    # --- Render Final Summary ---
+    summary_items = []
     if approved_ops:
-        print_separator()
-        apply_operations(approved_ops)
-    
-    print_final_summary(len(approved_ops), skipped_count)
+        applied_results = apply_operations(approved_ops)
+        
+        success_count = sum(1 for r in applied_results if r['status'] == 'success')
+        failure_count = sum(1 for r in applied_results if r['status'] == 'failure')
 
+        if success_count > 0:
+            summary_items.append({"key": "Applied", "value": str(success_count)})
+        if failure_count > 0:
+            summary_items.append({"key": "Failed", "value": str(failure_count)})
+
+    if skipped_count > 0:
+        summary_items.append({"key": "Skipped", "value": str(skipped_count)})
+    
+    if not summary_items:
+        summary_items.append({"key": "Status", "value": "No changes were applied."})
+
+    loom.render([
+        {"type": "group", "title": "Summary", "items": summary_items},
+        {"type": "end"}
+    ])
 
 if __name__ == "__main__":
     main()

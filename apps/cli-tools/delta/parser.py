@@ -4,7 +4,7 @@ from typing import List
 
 from .models import DeltaOperation
 from .config import FOUNDATION_ROOT
-from .ui import eprint, Colors
+from forge.packages.common.ui import eprint, Colors
 
 def parse_manifest(text: str, strict_mode: bool = False) -> List[DeltaOperation]:
     """

@@ -4,26 +4,22 @@ from typing import List
 
 from .models import DeltaOperation
 from .config import FOUNDATION_ROOT
-from .ui import eprint, Colors, print_header, print_line
+from forge.packages.common.ui import eprint, Colors
 
 def validate_all_operations(ops: List[DeltaOperation], strict_mode: bool = False) -> List[dict]:
     """
     Performs a full validation pass on all deltas, collecting all errors.
     This version is more idempotent: it warns on redundant operations but does not error.
     """
-    print_header("Validating Deltas")
     errors = []
-    # This simulation is no longer needed with idempotent checks, but can be useful for block checks.
-    temp_file_states = {} 
-
+    
     for op in ops:
         rel_path = os.path.relpath(op.path, FOUNDATION_ROOT) if op.path else "N/A"
         error = None
         
         file_exists = os.path.exists(op.path)
         dir_exists = os.path.isdir(op.path)
-
-  
+ 
         if not op.path or not op.action:
             error = 'Missing PATH or ACTION.'
         elif op.action == 'CREATE_FILE':
@@ -43,13 +39,10 @@ def validate_all_operations(ops: List[DeltaOperation], strict_mode: bool = False
                     if strict_mode:
                         error = warning_msg
                     else:
-                        # This warning prints outside the box-ui flow, which is acceptable for now.
+                        # Warnings are printed directly to stderr as they are not fatal.
                         eprint(f"  {Colors.CYAN}∆ {op.index}:{Colors.RESET} {Colors.YELLOW}[!] {warning_msg} (Will replace first instance){Colors.RESET}")
         
         if error:
             errors.append({'delta_index': op.index, 'path': rel_path, 'error': error})
-            print_line(f"Delta {op.index}: {Colors.RED}[✗] {error}{Colors.RESET}")
-        else:
-            print_line(f"Delta {op.index}: {Colors.GREEN}[✓]{Colors.RESET}")
 
     return errors

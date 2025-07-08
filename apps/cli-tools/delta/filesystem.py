@@ -1,20 +1,16 @@
 # forge/apps/cli-tools/delta/filesystem.py
 import os
 import shutil
-from typing import List
+from typing import List, Dict, Any
 
 from .models import DeltaOperation
 from .content_processor import process_content_for_output
-from .ui import eprint, Colors, print_header, print_line
-from .config import FOUNDATION_ROOT
 
 def apply_single_operation(op: DeltaOperation):
-    """Applies a single delta operation to the filesystem, including new actions."""
-    # Ensure parent directory exists for any file-writing operation
+    """Applies a single delta operation to the filesystem, raising an error on failure."""
     if op.action not in ['CREATE_DIRECTORY', 'DELETE_DIRECTORY']:
         os.makedirs(os.path.dirname(op.path), exist_ok=True)
 
-    # Process content just before writing
     processed_content = process_content_for_output(op.content)
     processed_replacement = process_content_for_output(op.replacement_content)
 
@@ -25,8 +21,7 @@ def apply_single_operation(op: DeltaOperation):
     elif op.action == 'CREATE_DIRECTORY':
         os.makedirs(op.path, exist_ok=True)
     elif op.action == 'DELETE_DIRECTORY':
-        if os.path.isdir(op.path):
-            shutil.rmtree(op.path)
+        if os.path.isdir(op.path): shutil.rmtree(op.path)
     elif op.action == 'APPEND_TO_FILE':
         with open(op.path, 'a', encoding='utf-8') as f: f.write(processed_content)
     elif op.action == 'PREPEND_TO_FILE':
@@ -38,7 +33,7 @@ def apply_single_operation(op: DeltaOperation):
         with open(op.path, 'r', encoding='utf-8') as f: content = f.read()
         
         if op.target_block not in content:
-            raise ValueError(f"Target block not found in file: {op.path}. This should have been caught by validation.")
+            raise ValueError(f"Target block not found in file: {op.path}.")
 
         if op.action == 'REPLACE_BLOCK':
             new_content = content.replace(op.target_block, processed_replacement)
@@ -49,19 +44,16 @@ def apply_single_operation(op: DeltaOperation):
         
         with open(op.path, 'w', encoding='utf-8') as f: f.write(new_content)
 
-def apply_operations(ops: List[DeltaOperation]):
-    """Applies a list of approved delta operations to the filesystem."""
-    print_header(f"Applying {len(ops)} Approved Deltas")
+def apply_operations(ops: List[DeltaOperation]) -> List[Dict[str, Any]]:
+    """
+    Applies a list of approved delta operations to the filesystem.
+    Returns a list of result dictionaries.
+    """
+    results = []
     for op in ops:
-        rel_path = os.path.relpath(op.path, FOUNDATION_ROOT) if op.path else "N/A"
         try:
             apply_single_operation(op)
-            status_symbol = f"{Colors.GREEN}[✓]{Colors.RESET}"
-            error_msg = "" 
+            results.append({"op": op, "status": "success", "error": None})
         except Exception as e:
-            status_symbol = f"{Colors.RED}[✗]{Colors.RESET}"
-            error_msg = f" {Colors.RED}({e}){Colors.RESET}"
-
-        line_text = f"Delta {op.index}: {Colors.CYAN}{op.action or 'N/A'}{Colors.RESET} ... {status_symbol}{error_msg}"
-        print_line(line_text)
-        eprint(f"{Colors.GREY}│  ↳ {Colors.PURPLE}{rel_path}{Colors.RESET}")
+            results.append({"op": op, "status": "failure", "error": str(e)})
+    return results
