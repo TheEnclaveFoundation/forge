@@ -48,35 +48,63 @@ def _draw_group(block: Dict[str, Any], width: int):
     items = block.get('items', [])
     eprint(f"{Colors.GREY}├─┄{Colors.PURPLE}{Colors.BOLD}{title}{Colors.RESET}")
 
-    # Calculate wrapping width for values
-    # Prefix is "├─┄╴Key: "
-    max_key_len = max(len(item.get('key', '')) for item in items) if items else 0
-    prefix_len = 4 + max_key_len + 2 # "├─┄╴" + key + ": "
-    wrap_width = width - prefix_len
-    
-    for item in items:
-        key = item.get('key', '')
-        value = str(item.get('value', ''))
-        key_str = f"{key}:".ljust(max_key_len + 1)
-        
-        wrapped_lines = textwrap.wrap(value, width=wrap_width, subsequent_indent='  ')
-        
-        if not wrapped_lines: # Handle empty values
-            eprint(f"{Colors.GREY}├─┄╴{Colors.WHITE}{key_str}{Colors.RESET}")
-            continue
+    if not items: return
 
-        # Print first line
-        eprint(f"{Colors.GREY}├─┄╴{Colors.WHITE}{key_str} {Colors.CYAN}{wrapped_lines[0]}{Colors.RESET}")
-        # Print subsequent wrapped lines
-        for line in wrapped_lines[1:]:
-            eprint(f"{Colors.GREY}│  {' ' * (max_key_len + 1)} {Colors.CYAN}{line}{Colors.RESET}")
+    # --- New, more robust rendering logic ---
+    key_color = Colors.WHITE
+    value_color = Colors.CYAN
+    
+    # Check if any line will be too long to format nicely on one line
+    max_len = 0
+    if items:
+        max_len = max(len(item.get('key', '')) for item in items)
+
+    # Threshold for switching to multi-line format
+    # Prefix: "├─┄╴" (4) + ": " (2) = 6
+    if (4 + max_len + 2 + 10) > width: # 10 is arbitrary buffer for value
+        # Multi-line format for cramped spaces
+        for item in items:
+            key = item.get('key', '')
+            value = str(item.get('value', ''))
+            eprint(f"{Colors.GREY}├─┄╴{key_color}{key}:{Colors.RESET}")
+            
+            # Wrap the value text with indentation
+            prefix = "│    "
+            wrap_width = width - len(prefix)
+            wrapped_lines = textwrap.wrap(value, width=wrap_width)
+            for line in wrapped_lines:
+                eprint(f"{Colors.GREY}{prefix}{value_color}{line}{Colors.RESET}")
+    else:
+        # Single-line format
+        for item in items:
+            key = item.get('key', '')
+            value = str(item.get('value', ''))
+            key_str = f"{key}:".ljust(max_len + 1)
+            full_line = f"{key_str} {value}"
+
+            # Still wrap the full line in case the value is very long
+            prefix = f"{Colors.GREY}├─┄╴{Colors.RESET}"
+            wrap_width = width - 4 # 4 for the prefix
+            
+            wrapped_lines = textwrap.wrap(full_line, width=wrap_width, 
+                                          initial_indent=f"{key_color}",
+                                          subsequent_indent=f"{' ' * (max_len + 2)}{value_color}",
+                                          break_long_words=False,
+                                          break_on_hyphens=False)
+
+            # Manually color the first line's key and value
+            first_line_parts = wrapped_lines[0].split(':', 1)
+            eprint(f"{prefix}{key_color}{first_line_parts[0]}:{value_color}{first_line_parts[1]}{Colors.RESET}")
+
+            for line in wrapped_lines[1:]:
+                 eprint(f"{Colors.GREY}│   {value_color}{line}{Colors.RESET}")
+
 
 def _draw_prose(block: Dict[str, Any], width: int):
     title = block.get('title', 'Content')
     text = block.get('text', '')
     eprint(f"{Colors.GREY}├─┄{Colors.PURPLE}{Colors.BOLD}{title}{Colors.RESET}")
     
-    # Wrap text with indentation
     prefix = "│  "
     wrap_width = width - len(prefix)
     wrapped_lines = textwrap.wrap(text, width=wrap_width)
@@ -96,11 +124,10 @@ def render(plan: List[Dict[str, Any]]):
     Parses a render plan and draws the UI to stderr.
     """
     if not sys.stderr.isatty():
-        return # Don't render UI if not in an interactive terminal
+        return
 
     width = _get_terminal_width()
     
-    # A map from block 'type' to the function that draws it
     DRAW_MAP = {
         'banner': lambda block: _draw_banner(block),
         'group': lambda block: _draw_group(block, width),
@@ -114,6 +141,5 @@ def render(plan: List[Dict[str, Any]]):
             try:
                 draw_func(block)
             except Exception as e:
-                # Fail gracefully if a single block fails to render
                 eprint(f"{Colors.RED}Error rendering UI block: {block}{Colors.RESET}")
                 eprint(f"{Colors.RED}Details: {e}{Colors.RESET}")
