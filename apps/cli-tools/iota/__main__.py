@@ -5,11 +5,10 @@ import sys
 import argparse
 from typing import List
 
-from forge.packages.common.ui import eprint, Colors
-from .ui import print_banner, print_header, print_line, print_end_line
 from .indexer import build_lexicon_index
 from .harmonizer import harmonize_content
 from .manifest_generator import generate_manifest
+from forge.packages.common import ui as loom
 
 def get_all_markdown_files(repo_paths: List[str]) -> List[str]:
     """Walks the repo paths and returns a list of all markdown files."""
@@ -29,37 +28,23 @@ def get_principles_list(lexicon: dict) -> List[str]:
             principles.append(display_text)
     return principles
 
-
 def main():
     """Main entry point for the Iota CLI tool."""
     foundation_root = os.environ.get("ENCLAVE_FOUNDATION_ROOT", os.path.expanduser("~/softrecursion/TheEnclaveFoundation"))
 
     parser = argparse.ArgumentParser(
         description="Iota (Ι/ι): The Link Harmonizer.",
-        add_help=False # We add a custom help argument.
+        add_help=False
     )
-    parser.add_argument(
-        '--all', action='store_true', help="Harmonize all repositories."
-    )
-    parser.add_argument(
-        '--mycelium', action='store_true', help="Harmonize the 'mycelium' repository."
-    )
-    parser.add_argument(
-        '--specs', action='store_true', help="Harmonize the 'specs' repository."
-    )
-    parser.add_argument(
-        '--forge', action='store_true', help="Harmonize the 'forge' repository."
-    )
-    parser.add_argument(
-        '--check', action='store_true', help="Check for files that need harmonization without generating a manifest."
-    )
-    # Custom help argument
-    parser.add_argument(
-        '--help', action='help', help='Show this help message and exit'
-    )
+    parser.add_argument('--all', action='store_true', help="Harmonize all repositories.")
+    parser.add_argument('--mycelium', action='store_true', help="Harmonize the 'mycelium' repository.")
+    parser.add_argument('--specs', action='store_true', help="Harmonize the 'specs' repository.")
+    parser.add_argument('--forge', action='store_true', help="Harmonize the 'forge' repository.")
+    parser.add_argument('--check', action='store_true', help="Check for files that need harmonization without generating a manifest.")
+    parser.add_argument('--help', action='help', help='Show this help message and exit')
     args = parser.parse_args()
 
-    print_banner()
+    render_plan = [{"type": "banner", "symbol": "Ι", "color": "cyan"}]
 
     repos_to_scan_names = []
     if args.all:
@@ -70,27 +55,28 @@ def main():
         if args.forge: repos_to_scan_names.append('forge')
 
     if not repos_to_scan_names:
-        print_header("Error:")
-        print_end_line(f"{Colors.YELLOW}No repository specified. Use --all or see --help.{Colors.RESET}")
+        render_plan.append({"type": "group", "title": "Error", "items": [{"key": "Message", "value": "No repository specified. Use --all or see --help."}]})
+        render_plan.append({"type": "end", "text": "Operation aborted.", "color": "red"})
+        loom.render(render_plan)
         return
-
-    print_header("Iota Harmonizer:")
 
     repo_paths = [os.path.join(foundation_root, name) for name in repos_to_scan_names]
 
-    # 1. Build the Lexicon Index
+    # 1. Build the Lexicon Index & gather files
     lexicon = build_lexicon_index(repo_paths)
-    print_line(f"Lexicon Index built with {len(lexicon)} terms.")
-
-    # 2. Extract the list of Principles for special handling
     principles = get_principles_list(lexicon)
-
-    # 3. Gather all markdown files to process
     files_to_process = get_all_markdown_files(repo_paths)
-    print_line(f"Found {len(files_to_process)} markdown files to scan.")
+    
+    setup_items = [
+        {"key": "Repos to Scan", "value": ", ".join(repos_to_scan_names)},
+        {"key": "Lexicon Terms", "value": str(len(lexicon))},
+        {"key": "Markdown Files", "value": str(len(files_to_process))}
+    ]
+    render_plan.append({"type": "group", "title": "Iota Harmonizer", "items": setup_items})
 
     # 4. Process each file and generate manifests if needed
     manifests_generated = 0
+    files_to_fix = []
     for file_path in files_to_process:
         with open(file_path, 'r', encoding='utf-8') as f:
             original_content = f.read()
@@ -100,20 +86,23 @@ def main():
         if new_content != original_content:
             manifests_generated += 1
             if args.check:
-                 eprint(f"{Colors.GREY}├─┄╴{Colors.YELLOW}[CHECK]{Colors.RESET} File needs harmonization: {os.path.relpath(file_path, foundation_root)}")
+                 files_to_fix.append({"key": "File", "value": os.path.relpath(file_path, foundation_root)})
             else:
                 # Print manifest to stdout for piping
                 print(generate_manifest(file_path, new_content, foundation_root))
 
-
     # 5. Final Summary Report
-    if args.check and manifests_generated > 0:
-        print_line(f"Found {manifests_generated} files that need harmonization.")
-    elif not args.check:
-        print_line(f"Generated {manifests_generated} Delta Manifests.")
+    if args.check and files_to_fix:
+        render_plan.append({"type": "group", "title": "Files to Harmonize", "items": files_to_fix})
 
-    print_end_line("Scan complete.")
+    summary_message = ""
+    if args.check:
+        summary_message = f"Found {manifests_generated} files that need harmonization."
+    else:
+        summary_message = f"Generated {manifests_generated} Delta Manifests for piping."
 
+    render_plan.append({"type": "end", "text": summary_message})
+    loom.render(render_plan)
 
 if __name__ == "__main__":
     main()
