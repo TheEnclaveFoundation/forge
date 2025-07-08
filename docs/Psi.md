@@ -34,7 +34,13 @@ This layer ensures the tool is robust and resilient, especially in automated wor
     -   **Backoff**: The delay between retries will follow an exponential backoff strategy (e.g., 1s, 2s, 4s) to avoid overwhelming the remote API.
 
 -   **Standardized Error Schema**:
-    -   All errors returned by any provider will conform to a single, unified JSON schema.
+    -   All errors returned by any provider will conform to a single, unified JSON schema. This allows consuming tools to programmatically handle failures.
+    -   **Error Types**:
+        - `CONFIG_ERROR`: Problem with local configuration (e.g., missing API key in `.env`).
+        - `API_AUTH_ERROR`: The provider rejected the API key.
+        - `NETWORK_ERROR`: A connection or timeout issue occurred.
+        - `API_ERROR`: The provider's API returned a server-side error (e.g., 5xx status).
+        - `BAD_REQUEST_ERROR`: The provider rejected the request as invalid (e.g., unsupported model).
     -   **Example Error Schema**:
 ```json
         {
@@ -42,7 +48,7 @@ This layer ensures the tool is robust and resilient, especially in automated wor
           "error_type": "API_AUTH_ERROR",
           "message": "Authentication failed. Please check your API key.",
           "provider": "google",
-          "details": "The API key is invalid or has expired."
+          "details": "The API key provided is invalid."
         }
 ```
 ---

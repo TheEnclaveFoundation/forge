@@ -31,7 +31,8 @@ def load_provider_config() -> dict:
                 model_map[model_info['model_name']] = provider
         return model_map
     except Exception as e:
-        print(json.dumps({"error": f"Failed to load or parse providers.yaml: {e}"}), file=sys.stderr)
+        # Since this runs early, a simple print is fine.
+        print(json.dumps({"error": True, "error_type": "CONFIG_ERROR", "message": f"Failed to load or parse providers.yaml: {e}"}), file=sys.stderr)
         sys.exit(1)
 
 def main():
@@ -51,18 +52,14 @@ def main():
     
     # --- Assemble Render Plan ---
     render_plan = []
-    render_plan.append({"type": "banner", "symbol": "Ψ", "color": "cyan"})
-    render_plan.append({"type": "group", "title": "Oracle Parameters", "items": [
-        {"key": "Model", "value": args.model},
-        {"key": "Prompt", "value": args.prompt_file}
-    ]})
-
+    
     prompt_file_path = args.prompt_file
     if not os.path.isabs(prompt_file_path):
         prompt_file_path = os.path.join(config.FOUNDATION_ROOT, prompt_file_path)
 
     content_to_analyze = sys.stdin.read()
     if not content_to_analyze.strip():
+        render_plan.append({"type": "banner", "symbol": "Ψ", "color": "cyan"})
         render_plan.append({"type": "end", "text": "No content received from stdin.", "color": "yellow"})
         loom.render(render_plan)
         return
@@ -71,34 +68,42 @@ def main():
         with open(prompt_file_path, 'r', encoding='utf-8') as f:
             system_prompt = f.read()
     except FileNotFoundError:
-        print(json.dumps({"error": f"Prompt file not found: {prompt_file_path}"}), file=sys.stderr)
+        print(json.dumps({"error": True, "error_type": "CONFIG_ERROR", "message": f"Prompt file not found: {prompt_file_path}"}), file=sys.stderr)
         return
 
     # --- Get Result (from Cache or Live) ---
     result = None
     if not args.no_cache:
         result = cache_manager.get_cached_response(content_to_analyze, system_prompt, args.model)
-
+    
     if not result:
         model_to_provider_map = load_provider_config()
         provider_name = model_to_provider_map.get(args.model)
-        if not provider_name:
-            print(json.dumps({"error": f"Model '{args.model}' not found in providers.yaml."}), file=sys.stderr)
-            return
-
-        provider_module = PROVIDER_MAP.get(provider_name)
-        if not provider_module:
-            print(json.dumps({"error": f"Provider '{provider_name}' is configured but not implemented."}), file=sys.stderr)
+        # Error handling for provider/model not found
+        if not provider_name or not PROVIDER_MAP.get(provider_name):
+            print(json.dumps({"error": True, "error_type": "CONFIG_ERROR", "message": f"Model '{args.model}' or its provider is not configured."}), file=sys.stderr)
             return
         
+        provider_module = PROVIDER_MAP.get(provider_name)
         result = provider_module.get_response(content_to_analyze, system_prompt, args.model)
         
         if not args.no_cache and not result.get('error'):
             cache_manager.set_cached_response(content_to_analyze, system_prompt, args.model, result, args.prompt_file)
 
-    # --- Handle Output ---
-    
-    # Add result blocks to the render plan
+    # --- Handle All Output ---
+
+    # If an error occurred, print it as JSON and exit
+    if result.get('error'):
+        print(json.dumps(result, indent=2))
+        return
+
+    # Build the UI render plan for stderr
+    render_plan.append({"type": "banner", "symbol": "Ψ", "color": "cyan"})
+    render_plan.append({"type": "group", "title": "Oracle Parameters", "items": [
+        {"key": "Model", "value": args.model},
+        {"key": "Prompt", "value": args.prompt_file}
+    ]})
+
     if args.metadata:
         is_cached = result.get('__cache_hit__', False)
         status = "Cache Hit" if is_cached else "Live Call"
@@ -118,8 +123,6 @@ def main():
         render_plan.append({"type": "prose", "title": "Oracle Response", "text": response_text})
 
     render_plan.append({"type": "end", "text": "Done.", "color": "green"})
-    
-    # Render the entire UI to stderr
     loom.render(render_plan)
     
     # Handle stdout for piping
