@@ -1,0 +1,26 @@
+# The Enclave Forge UI Theme
+# This file defines the visual style for all tools using the 'loom' renderer.
+
+# The characters used to draw the UI scaffolding.
+characters:
+  vertical: "│"
+  t_junction: "├"
+  corner: "└"
+  top_corner: "┌" # Added for banners
+  ruler: "─┄"
+  arrow: "╴"
+
+# Style definitions for specific UI block types.
+# Values here should be the *names* of colors defined in the loom renderer.
+styles:
+  banner:
+    symbol_color: "CYAN"
+  group:
+    title_color: "PURPLE"
+    key_color: "WHITE"
+    value_color: "CYAN"
+  prose:
+    title_color: "PURPLE"
+    text_color: "WHITE"
+  end:
+    default_color: "GREEN"

@@ -65,3 +65,10 @@ All UI elements (colors, `eprint`, etc.) **must** be imported from the `forge/pa
 
 ### 5.3. Configuration
 Standard configuration, such as the `ENCLAVE_FOUNDATION_ROOT`, should be managed via environment variables with sensible defaults.
+## 6. The "Render Plan" Model
+
+To enforce consistency and strictly separate logic from presentation, all `forge` tools that produce a UI must adhere to the "Render Plan" model.
+
+-   **Data, Not Directives**: A tool's main script **must not** call print functions directly. Instead, its sole responsibility is to assemble a **render plan**—a list of simple Python dictionaries that describe *what* to display.
+-   **Centralized Rendering**: This render plan is passed in a single call to the central `loom` renderer (`forge/packages/common/ui.py`). The `loom` package is solely responsible for parsing this data structure and handling all aspects of drawing the UI to `stderr`, including colors, box characters, and text wrapping.
+-   **Extensible Block Types**: The plan is composed of "UI blocks" defined by a `type` key (e.g., `banner`, `group`, `prose`). The `loom` renderer can be extended to support new block types without requiring any changes to the tools themselves.

@@ -1,64 +1,64 @@
-# Delta
+# Tool Documentation: Delta (∆)
 
 **Type:** Core Protocol / System
-**Status:** Operational v2.7 (with Robust Code Block and Example Handling)
+**Status:** Operational v3.0
 
-## Definition
+## 1. Definition
 
-Delta is a Python script that serves as the core mechanism for applying structured changes to the file system. It parses a structured text block called a **Delta Manifest** to perform precise, automated, and batch-capable modifications. Its purpose is to eliminate the tedious and error-prone process of manual file updates, making our collaborative workflow more robust, scalable, and efficient.
+**Delta (∆)** is a command-line utility that serves as the core mechanism for applying structured changes to the file system. It parses a structured text block called a **Delta Manifest** from standard input to perform precise, automated, and batch-capable modifications. Its purpose is to eliminate the tedious and error-prone process of manual file updates.
 
-## The Delta Manifest Protocol (v2.7)
+## 2. Usage
 
-A Delta Manifest is a block of text containing one or more "Deltas." Each Delta is a self-contained instruction set for a single file operation, parsed by the `delta` script.
+`delta` is designed to be used in a pipeline, reading a manifest from standard input.
 
-### Structure of a Delta
+### Command-Line Flags
+-   `--dry-run`: Validate the manifest and show a diff of all proposed changes without applying them.
+-   `--transaction`: Apply all approved changes as a single, atomic transaction. If any operation fails, the entire batch is rolled back.
+-   `-y`, `--yes`: Automatically approve and apply all operations without an interactive prompt. Ideal for scripts.
+-   `--strict`: Causes parser warnings to be treated as fatal errors.
+
+### Example Invocations
+```bash
+# Interactively review a manifest from a file
+cat my_changes.manifest | delta
+
+# Silently apply a manifest from the clipboard in a transaction
+ci | delta -y --transaction
+```
+---
+## 3. The Delta Manifest Protocol
+
+A Delta Manifest is a block of text containing one or more "Deltas." Each Delta is a self-contained instruction set for a single file operation.
+
+### 3.1. Structure of a Delta
 
 Each Delta must adhere to the following structure:
 
 1.  **Start Marker:** Every Delta must begin with the line `=== DELTA::START ===`.
-2.  **Header:** Defines the operation's core parameters, such as `PATH`, `ACTION`, `SOURCE_PATH`, etc.
-3.  **Content Section:** If required by the action, provides the data for the operation, beginning with a `=== DELTA::CONTENT ===` marker.
+2.  **Header(s):** Defines the operation's core parameters (e.g., `PATH`, `ACTION`, `SOURCE_PATH`).
+3.  **Content Section:** If required, provides the data for the action, starting with a `=== DELTA::CONTENT ===` marker.
 
----
-
-### Action Reference
+### 3.2. Action Reference
 
 #### File Content Actions
-
-* **`CREATE_FILE`**: Creates a new file.
-    * Requires: `CONTENT` section.
-* **`REPLACE_FILE`**: Overwrites an existing file.
-    * Requires: `CONTENT` section.
-* **`APPEND_TO_FILE`**: Adds content to the end of a file.
-    * Requires: `CONTENT` section.
-* **`PREPEND_TO_FILE`**: Adds content to the beginning of a file.
-    * Requires: `CONTENT` section.
-* **`DELETE_FILE`**: Deletes a file.
-    * Requires: No content sections.
+-   **`CREATE_FILE`**: Creates a new file with the provided `CONTENT`.
+-   **`REPLACE_FILE`**: Overwrites an existing file with the provided `CONTENT`.
+-   **`APPEND_TO_FILE`**: Adds `CONTENT` to the end of an existing file.
+-   **`PREPEND_TO_FILE`**: Adds `CONTENT` to the beginning of an existing file.
+-   **`DELETE_FILE`**: Deletes a file.
 
 #### Directory Actions
-
-* **`CREATE_DIRECTORY`**: Creates a new directory.
-    * Requires: No content sections. The `PATH` specifies the directory to create.
-* **`DELETE_DIRECTORY`**: Deletes a directory and its contents.
-    * Requires: No content sections. The `PATH` specifies the directory to delete.
+-   **`CREATE_DIRECTORY`**: Creates a new directory.
+-   **`DELETE_DIRECTORY`**: Deletes a directory and its contents recursively.
 
 #### Path Actions
+-   **`MOVE_FILE`**: Moves or renames a file. Requires `SOURCE_PATH` and `DESTINATION_PATH` headers.
 
-* **`MOVE_FILE`**: Moves or renames a file. This action is distinct in that it requires `SOURCE_PATH` and `DESTINATION_PATH` headers instead of the standard `PATH`.
-    * Requires: `SOURCE_PATH`, `DESTINATION_PATH`. No content sections.
 ---
+## 4. Special Syntax
 
-### Embedding Code Blocks within Delta Manifests (Special Syntax: `@@@`)
+### 4.1. Embedding Code Blocks (`@@@`)
+To embed a standard Markdown code block within the `CONTENT` section, use `@@@` instead of ` ``` `. The `delta` script will automatically convert it back to triple backticks before writing the file.
 
-To prevent parsing conflicts when embedding standard Markdown code blocks (delimited by triple backticks ` ``` `) within the `CONTENT` section of a Delta Manifest, we use a special substitution:
-
-* **Use `@@@` instead of ` ``` ` (three backticks).**
-* The `delta` script will automatically convert `@@@` back to ` ``` ` just before writing the content to the file.
-
-### Embedding Example Delta Manifests (Special Syntax: `#! DELTA_EXAMPLE`)
-
-When you need to include a *full, syntactically correct example of a Delta Manifest* within the content of a document, you must enclose it within special literal markers. This prevents `delta` from attempting to parse and execute the *example* as a live Delta operation itself.
-
-* Wrap the entire example Delta Manifest with `#! DELTA_EXAMPLE::START` and `#! DELTA_EXAMPLE::END` on their own lines.
-* `delta` will strip these markers and include all content between them *literally* in the target file.
+### 4.2. Embedding Example Manifests (`#! DELTA_EXAMPLE`)
+To include a literal example of a Delta Manifest within a document (like this one), wrap the example block with `#! DELTA_EXAMPLE::START` and `#! DELTA_EXAMPLE::END` on their own lines. This prevents `delta` from trying to parse the example.

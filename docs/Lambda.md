@@ -3,53 +3,49 @@
 **Type:** Core Tool / Linter
 **Status:** Operational
 
-## Definition
+## 1. Definition
 
-Lambda is a deterministic linter that checks the Architect's Codex for **philosophical and ethical consistency**. Unlike typical linters that check for code style or syntax errors, Lambda checks for adherence to the Enclave's foundational principles as defined in a ruleset. It is the "Law" component of the **[Integrated Adherence Protocol](./Integrated-Adherence-Protocol.md)**.
+**Lambda (Λ)** is a deterministic linter that checks our repositories for **philosophical and ethical consistency**. Unlike typical linters that check for code style, Lambda checks for adherence to the Enclave's foundational principles as defined in a ruleset. It can operate in two modes: reporting violations or generating automated fixes.
 
-## Configuration Files
+## 2. Modes of Operation
+
+### 2.1. Linting Mode (Default)
+By default, `lambda` runs in linting mode. It reads a snapshot from `sigma`, analyzes it, and prints a human-readable report of any violations to your screen.
+```bash
+# Run the linter on the mycelium repository and view a verbose report
+sigma --mycelium | lambda -v
+```
+### 2.2. Auto-Fix Mode (`--auto-fix`)
+When the `--auto-fix` flag is used, `lambda` does not print a UI report. Instead, it generates a `delta` manifest on standard output. This manifest contains the `REPLACE_FILE` operations needed to correct any simple, deterministic violations it found. This enables a powerful automated workflow.
+```bash
+# Find and automatically fix all simple style violations in the specs repo
+sigma --specs | lambda --auto-fix | delta -y
+```
+## 3. Configuration Files
 
 Lambda's behavior is driven by two key YAML files:
 
-### 1. `soul.rules.yaml`
-
-This file contains the list of rules the linter will check. Each rule has several properties:
--   **`name`**: A human-readable identifier for the rule.
--   **`severity`**: Can be `ERROR`, `STYLE`, or `STRUCTURE`. This is used for reporting and filtering.
--   **`description`**: A detailed explanation of what the rule checks for and why.
--   **`check`**: An object defining the logic.
-    -   **`type`**: The type of check to perform (e.g., `contains_text`, `must_start_with`, `lacks_link_on_entity_interaction`).
-    -   **`scope`**: (Optional) Restricts the check to a specific directory (e.g., `10_Lexicon`).
-    -   **`params`**: A dictionary of parameters required by the check type, such as a list of forbidden words or a required prefix.
-
-### 2. `sovereign_entities.yaml`
-
-This file is a simple list of concepts that are considered "sovereign entities". It is used by the `lacks_link_on_entity_interaction` check to identify when a document describes an interaction between these entities, which may trigger rules requiring that `[[10_Lexicon/Consent.md]]` be referenced.
-
-## Output Formats
-
-Lambda can produce output in two formats, controlled by the `--output-format` argument.
-
-1.  **`text` (Default)**: A human-readable summary of violations, grouped by rule. The `--verbose` flag can be used to show a detailed report for each violation.
-2.  **`json`**: A machine-readable JSON object containing a detailed list of every violation found. This is ideal for piping to other scripts or for automated processing.
-
-### Example JSON Output Snippet
-```json
-{
-  "lambda_version": "1.3",
-  "violations_found": 1,
-  "violations": [
-    {
-      "file_path": "./30_Mechanica/Some-Protocol.md",
-      "line_number": 25,
-      "rule_name": "Tool-Making Fallacy Check",
-      "severity": "STYLE",
-      "error_type": "contains_text",
-      "details": {
-        "forbidden_word": "user",
-        "full_line_content": "The user then performs an action."
-      }
-    }
-  ]
-}
+### 3.1. `soul.rules.yaml`
+This file contains the list of rules the linter will check. Auto-fixable rules can include a `suggestion` field.
+```yaml
+rules:
+  - name: "Tool-Making Fallacy Check"
+    severity: "STYLE"
+    description: "..."
+    check:
+      type: "contains_text"
+      params:
+        words:
+          - forbidden: "user"
+            suggestion: "Seeker"
+          - forbidden: "utility"
+            suggestion: "purpose"
 ```
+### 3.2. `sovereign_entities.yaml`
+This file lists concepts that are considered "sovereign entities" (e.g., `Seeker`, `Echo`). It is used by specific checks to enforce rules about consent when these entities interact.
+
+## 4. Command-Line Flags
+-   `-v`, `--verbose`: Show a detailed, per-violation report instead of a summary.
+-   `--auto-fix`: Activate auto-fix mode to generate a `delta` manifest on `stdout`.
+-   `--output-format json`: Output a machine-readable JSON report of violations to `stdout` (ignored if `--auto-fix` is used).
+-   `--rules`, `--entities`: Specify paths to custom rule or entity files.
