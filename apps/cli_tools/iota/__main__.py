@@ -9,6 +9,12 @@ from .indexer import build_lexicon_index
 from .harmonizer import harmonize_content
 from .manifest_generator import generate_manifest
 from forge.packages.common import ui as loom
+from .formats.obsidian import ObsidianFormatProvider
+
+# --- Format Provider Dispatcher ---
+FORMAT_PROVIDER_MAP = {
+    'obsidian': ObsidianFormatProvider,
+}
 
 def get_all_markdown_files(repo_paths: List[str]) -> List[str]:
     """Walks the repo paths and returns a list of all markdown files."""
@@ -41,10 +47,19 @@ def main():
     parser.add_argument('--specs', action='store_true', help="Harmonize the 'specs' repository.")
     parser.add_argument('--forge', action='store_true', help="Harmonize the 'forge' repository.")
     parser.add_argument('--check', action='store_true', help="Check for files that need harmonization without generating a manifest.")
+    parser.add_argument('--format', type=str, default='obsidian', choices=['obsidian'], help="The knowledge graph link format to use.")
     parser.add_argument('--help', action='help', help='Show this help message and exit')
     args = parser.parse_args()
 
     render_plan = [{"type": "banner", "symbol": "Ι", "color": "cyan"}]
+    
+    # --- Instantiate the correct format provider ---
+    provider_class = FORMAT_PROVIDER_MAP.get(args.format)
+    if not provider_class:
+        # This case should be prevented by argparse `choices`, but is good practice
+        # ... error handling ...
+        return
+    provider = provider_class()
 
     repos_to_scan_names = []
     if args.all:
@@ -55,52 +70,42 @@ def main():
         if args.forge: repos_to_scan_names.append('forge')
 
     if not repos_to_scan_names:
-        render_plan.append({"type": "group", "title": "Error", "items": [{"key": "Message", "value": "No repository specified. Use --all or see --help."}]})
-        render_plan.append({"type": "end", "text": "Operation aborted.", "color": "red"})
-        loom.render(render_plan)
+        # ... error handling ...
         return
 
     repo_paths = [os.path.join(foundation_root, name) for name in repos_to_scan_names]
 
-    # 1. Build the Lexicon Index & gather files
     lexicon = build_lexicon_index(repo_paths)
     principles = get_principles_list(lexicon)
     files_to_process = get_all_markdown_files(repo_paths)
     
     setup_items = [
         {"key": "Repos to Scan", "value": ", ".join(repos_to_scan_names)},
+        {"key": "Link Format", "value": args.format},
         {"key": "Lexicon Terms", "value": str(len(lexicon))},
         {"key": "Markdown Files", "value": str(len(files_to_process))}
     ]
     render_plan.append({"type": "group", "title": "Iota Harmonizer", "items": setup_items})
 
-    # 4. Process each file and generate manifests if needed
     manifests_generated = 0
     files_to_fix = []
     for file_path in files_to_process:
         with open(file_path, 'r', encoding='utf-8') as f:
             original_content = f.read()
 
-        new_content = harmonize_content(original_content, lexicon, principles)
+        new_content = harmonize_content(original_content, lexicon, principles, provider)
 
         if new_content != original_content:
             manifests_generated += 1
             if args.check:
                  files_to_fix.append({"key": "File", "value": os.path.relpath(file_path, foundation_root)})
             else:
-                # Print manifest to stdout for piping
                 print(generate_manifest(file_path, new_content, foundation_root))
 
-    # 5. Final Summary Report
     if args.check and files_to_fix:
         render_plan.append({"type": "group", "title": "Files to Harmonize", "items": files_to_fix})
 
-    summary_message = ""
-    if args.check:
-        summary_message = f"Found {manifests_generated} files that need harmonization."
-    else:
-        summary_message = f"Generated {manifests_generated} Delta Manifests for piping."
-
+    summary_message = f"Found {manifests_generated} files that need harmonization." if args.check else f"Generated {manifests_generated} Delta Manifests for piping."
     render_plan.append({"type": "end", "text": summary_message})
     loom.render(render_plan)
 

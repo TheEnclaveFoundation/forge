@@ -9,7 +9,6 @@ from forge.packages.common.ui import eprint, Colors
 def parse_manifest(text: str, strict_mode: bool = False) -> List[DeltaOperation]:
     """
     Parses the manifest text into a list of DeltaOperation objects.
-    In strict mode, treats warnings as fatal errors.
     """
     operations = []
     current_op = None
@@ -22,13 +21,10 @@ def parse_manifest(text: str, strict_mode: bool = False) -> List[DeltaOperation]
         stripped_line = line.strip()
         line_warning = None
 
-        # Handle literal example block markers
         if stripped_line == '#! DELTA_EXAMPLE::START':
-            if current_op and current_content_section in ['TARGET_BLOCK', 'REPLACEMENT_CONTENT', 'CONTENT']:
+            if current_op and current_content_section == 'CONTENT':
                 in_example_block_content = True
-                if current_content_section == 'TARGET_BLOCK': current_op.target_block += line
-                elif current_content_section == 'REPLACEMENT_CONTENT': current_op.replacement_content += line
-                elif current_content_section == 'CONTENT': current_op.content += line
+                current_op.content += line
             else:
                 line_warning = f"`#! DELTA_EXAMPLE::START` found outside a valid content section at line {line_num + 1}."
             if line_warning:
@@ -41,15 +37,11 @@ def parse_manifest(text: str, strict_mode: bool = False) -> List[DeltaOperation]
                 if strict_mode: raise ValueError(line_warning)
                 else: eprint(f"  {Colors.YELLOW}Warning: {line_warning}{Colors.RESET}")
             in_example_block_content = False
-            if current_content_section == 'TARGET_BLOCK': current_op.target_block += line
-            elif current_content_section == 'REPLACEMENT_CONTENT': current_op.replacement_content += line
-            elif current_content_section == 'CONTENT': current_op.content += line
+            current_op.content += line
             continue
 
         if in_example_block_content:
-            if current_content_section == 'TARGET_BLOCK': current_op.target_block += line
-            elif current_content_section == 'REPLACEMENT_CONTENT': current_op.replacement_content += line
-            elif current_content_section == 'CONTENT': current_op.content += line
+            current_op.content += line
             continue
 
         if stripped_line == '=== DELTA::START ===':
@@ -65,34 +57,36 @@ def parse_manifest(text: str, strict_mode: bool = False) -> List[DeltaOperation]
                 else: eprint(f"  {Colors.YELLOW}Warning: {line_warning}{Colors.RESET}")
             continue
 
-        header_match = re.match(r'^(PATH|ACTION):\s*(.*)$', stripped_line)
+        header_match = re.match(r'^(PATH|ACTION|SOURCE_PATH|DESTINATION_PATH):\s*(.*)$', stripped_line)
         if header_match:
             key, val = header_match.groups()
+            stripped_val = val.strip()
             if key == 'PATH':
-                op_path = val.strip()
-                current_op.path = os.path.normpath(os.path.join(FOUNDATION_ROOT, op_path.lstrip('/')))
-            elif key == 'ACTION': current_op.action = val.strip()
+                current_op.path = os.path.normpath(os.path.join(FOUNDATION_ROOT, stripped_val.lstrip('/')))
+            elif key == 'ACTION': 
+                current_op.action = stripped_val
+            elif key == 'SOURCE_PATH':
+                current_op.source_path = os.path.normpath(os.path.join(FOUNDATION_ROOT, stripped_val.lstrip('/')))
+            elif key == 'DESTINATION_PATH':
+                current_op.destination_path = os.path.normpath(os.path.join(FOUNDATION_ROOT, stripped_val.lstrip('/')))
+            
             current_content_section = key
             continue
 
-        content_section_match = re.match(r'^=== DELTA::(TARGET_BLOCK|REPLACEMENT_CONTENT|CONTENT) ===$', stripped_line)
+        content_section_match = re.match(r'^=== DELTA::CONTENT ===$', stripped_line)
         if content_section_match:
-            current_content_section = content_section_match.groups()[0]
-            if current_content_section == 'TARGET_BLOCK': current_op.target_block = ''
-            elif current_content_section == 'REPLACEMENT_CONTENT': current_op.replacement_content = ''
-            elif current_content_section == 'CONTENT': current_op.content = ''
+            current_content_section = 'CONTENT'
+            current_op.content = ''
             continue
 
         if current_content_section:
-            if current_content_section in ['PATH', 'ACTION']:
+            if current_content_section != 'CONTENT':
                 line_warning = f"Ignoring unexpected content after {current_content_section} at line {line_num + 1}: '{stripped_line}'"
                 if strict_mode: raise ValueError(line_warning)
                 else: eprint(f"  {Colors.YELLOW}Warning: {line_warning}{Colors.RESET}")
                 continue
             
-            if current_content_section == 'TARGET_BLOCK': current_op.target_block += line
-            elif current_content_section == 'REPLACEMENT_CONTENT': current_op.replacement_content += line
-            elif current_content_section == 'CONTENT': current_op.content += line
+            current_op.content += line
         elif stripped_line:
             line_warning = f"Ignoring unclassified line {line_num + 1}: '{stripped_line}'"
             if strict_mode: raise ValueError(line_warning)
