@@ -8,15 +8,25 @@ def check_contains_text(file_path: str, file_content: str, rule: dict) -> dict o
     
     lines = file_content.splitlines()
     for i, line in enumerate(lines):
-        for word in words_to_check:
-            if re.search(r'\b' + re.escape(word) + r'\b', line, flags):
+        for word_obj in words_to_check:
+            # Handle both simple strings and new dictionary format
+            forbidden_word = word_obj if isinstance(word_obj, str) else word_obj.get('forbidden')
+            if not forbidden_word:
+                continue
+
+            if re.search(r'\b' + re.escape(forbidden_word) + r'\b', line, flags):
+                details = { "forbidden_word": forbidden_word, "full_line_content": line.strip() }
+                # Add suggestion to the violation details if it exists
+                if isinstance(word_obj, dict) and 'suggestion' in word_obj:
+                    details['suggestion'] = word_obj['suggestion']
+
                 return {
                     "file_path": file_path,
                     "line_number": i + 1,
                     "rule_name": rule['name'],
                     "severity": rule['severity'],
                     "error_type": "contains_text",
-                    "details": { "forbidden_word": word, "full_line_content": line.strip() }
+                    "details": details
                 }
     return None
 

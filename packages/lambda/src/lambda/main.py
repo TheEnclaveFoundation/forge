@@ -5,6 +5,7 @@ import os
 from .loaders import load_yaml_config, parse_codex_snapshot
 from .dispatcher import run_check
 from . import reporting
+from . import fixer
 from forge.packages.common import ui as loom
 
 def main():
@@ -19,10 +20,9 @@ def main():
     parser.add_argument('-e', '--entities', default=default_entities_path, help="Path to entities file.")
     parser.add_argument('-o', '--output-format', choices=['text', 'json'], default='text', help="Output format.")
     parser.add_argument('-v', '--verbose', action='store_true', help="Enable verbose output.")
+    parser.add_argument('--auto-fix', action='store_true', help="Generate a delta manifest to fix simple violations.")
     parser.add_argument('--help', action='help', help='Show this help message and exit')
     args = parser.parse_args()
-
-    render_plan = [{"type": "banner", "symbol": "Λ", "color": "cyan"}]
 
     snapshot_content = ""
     is_piped = not sys.stdin.isatty()
@@ -33,8 +33,11 @@ def main():
         with open(args.input, 'r', encoding='utf-8') as f:
             snapshot_content = f.read()
     else:
-        render_plan.append({"type": "end", "text": "No input provided. Please pipe a snapshot or use --input.", "color": "yellow"})
-        loom.render(render_plan)
+        # Only render UI if not auto-fixing
+        if not args.auto_fix:
+            render_plan = [{"type": "banner", "symbol": "Λ", "color": "cyan"}]
+            render_plan.append({"type": "end", "text": "No input provided. Please pipe a snapshot or use --input.", "color": "yellow"})
+            loom.render(render_plan)
         return
 
     try:
@@ -43,7 +46,6 @@ def main():
         sovereign_entities = entities_config.get('sovereign_entities', [])
         
         codex_files = parse_codex_snapshot(snapshot_content)
-        render_plan.append({"type": "group", "title": "Parsing Snapshot", "items": [{"key": "Files Found", "value": str(len(codex_files))}]})
         
         all_violations = []
         for file_path, file_content in codex_files.items():
@@ -52,23 +54,35 @@ def main():
                 if violation:
                     all_violations.append(violation)
         
-        # Handle JSON output separately as it goes to stdout
+        # --- Output Handling ---
+        if args.auto_fix:
+            fixer.generate_fix_manifests(all_violations, codex_files)
+            return
+
         if args.output_format == 'json':
             reporting.print_json_report(all_violations)
-            # We don't render a UI for JSON output
             return
             
-        # Generate and append the main report to the render plan
+        render_plan = [{"type": "banner", "symbol": "Λ", "color": "cyan"}]
+        render_plan.append({"type": "group", "title": "Parsing Snapshot", "items": [{"key": "Files Found", "value": str(len(codex_files))}]})
         report_plan = reporting.generate_report_plan(all_violations, args.verbose)
         render_plan.extend(report_plan)
+        render_plan.append({"type": "end"})
+        loom.render(render_plan)
 
     except FileNotFoundError as e:
-        render_plan.append({"type": "group", "title": "Fatal Error", "items": [{"key": "Message", "value": f"A required file was not found: {e}"}]})
+        # Omit UI for auto-fix mode
+        if not args.auto_fix:
+            loom.render([
+                {"type": "banner", "symbol": "Λ", "color": "cyan"},
+                {"type": "group", "title": "Fatal Error", "items": [{"key": "Message", "value": f"A required file was not found: {e}"}]}
+            ])
     except Exception as e:
-        render_plan.append({"type": "group", "title": "Fatal Error", "items": [{"key": "Message", "value": f"An unexpected error occurred: {e}"}]})
-
-    render_plan.append({"type": "end"})
-    loom.render(render_plan)
+        if not args.auto_fix:
+             loom.render([
+                {"type": "banner", "symbol": "Λ", "color": "cyan"},
+                {"type": "group", "title": "Fatal Error", "items": [{"key": "Message", "value": f"An unexpected error occurred: {e}"}]}
+            ])
 
 if __name__ == "__main__":
     main()

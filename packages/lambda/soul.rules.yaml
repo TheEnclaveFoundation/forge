@@ -31,9 +31,9 @@ rules:
       type: "contains_text"
       params:
         words:
-          - "writes to the Locus"
-          - "reads from the Locus"
-          - "modifies the Locus"
+          - forbidden: "writes to the Locus"
+          - forbidden: "reads from the Locus"
+          - forbidden: "modifies the Locus"
 
   - name: "Tool-Making Fallacy Check"
     severity: "STYLE"
@@ -41,7 +41,17 @@ rules:
     check:
       type: "contains_text"
       params:
-        words: ["user", "utility", "operate", "command", "function"]
+        words:
+          - forbidden: "user"
+            suggestion: "Seeker"
+          - forbidden: "utility"
+            suggestion: "purpose"
+          - forbidden: "operate"
+            suggestion: "engage"
+          - forbidden: "command"
+            suggestion: "request"
+          - forbidden: "function"
+            suggestion: "aspect"
   
   - name: "Aesthetic Mandate UI Check"
     severity: "STYLE"
@@ -49,4 +59,11 @@ rules:
     check:
       type: "contains_text"
       params:
-        words: ["button", "click", "menu", "dropdown", "modal", "dialog box", "popup"]
+        words:
+          - forbidden: "button"
+          - forbidden: "click"
+          - forbidden: "menu"
+          - forbidden: "dropdown"
+          - forbidden: "modal"
+          - forbidden: "dialog box"
+          - forbidden: "popup"
