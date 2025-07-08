@@ -96,14 +96,24 @@ def _draw_prose(block: Dict[str, Any], width: int):
     char_map = THEME.get("characters", {})
     style = THEME.get("styles", {}).get("prose", {})
     title = block.get('title', 'Content')
-    text = block.get('text', '')
     title_str = f"{_get_color(style.get('title_color', 'PURPLE'))}{_get_color('bold')}{title}{_get_color('reset')}"
     eprint(f"{_get_color('grey')}{char_map.get('t_junction')}{char_map.get('ruler')}{title_str}")
+    
     prefix = f"{_get_color('grey')}{char_map.get('vertical')}  {_get_color('reset')}"
     wrap_width = width - 3
-    wrapped_lines = textwrap.wrap(text, width=wrap_width)
-    for line in wrapped_lines:
-        eprint(f"{prefix}{_get_color(style.get('text_color', 'WHITE'))}{line}{_get_color('reset')}")
+    
+    # NEW: Handle structured, colored lines for diffs
+    if 'lines' in block:
+        for line_obj in block.get('lines', []):
+            content = line_obj.get('content', '').rstrip('\n')
+            color_name = line_obj.get('color', style.get('text_color', 'WHITE'))
+            eprint(f"{prefix}{_get_color(color_name)}{content}{_get_color('reset')}")
+    # FALLBACK: Handle plain text for backward compatibility
+    else:
+        text = block.get('text', '')
+        wrapped_lines = textwrap.wrap(text, width=wrap_width)
+        for line in wrapped_lines:
+            eprint(f"{prefix}{_get_color(style.get('text_color', 'WHITE'))}{line}{_get_color('reset')}")
 
 def _draw_end(block: Dict[str, Any]):
     char_map = THEME.get("characters", {})

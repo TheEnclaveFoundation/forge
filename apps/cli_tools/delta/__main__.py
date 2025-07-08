@@ -12,7 +12,7 @@ from .config import FOUNDATION_ROOT
 from .parser import parse_manifest
 from .validation import validate_all_operations
 from .filesystem import apply_operations, stage_and_apply_transaction
-from .diff import generate_diff_text
+from .diff import generate_diff_objects
 from forge.packages.common import ui as loom
 from forge.packages.common.ui import Colors
 
@@ -26,27 +26,22 @@ def build_error_plan(error_message: str) -> List[dict]:
         {"type": "end", "text": "Operation aborted.", "color": "red"}
     ]
 
-def run_dry_run(operations: list):
-    """Executes a dry run, showing diffs without applying changes."""
+def run_check(operations: list):
+    """Executes a check, showing diffs without applying changes."""
     loom.render([{"type": "banner", "symbol": "∆", "color": "cyan"}])
     
     for op in operations:
-        diff_text = "".join(generate_diff_text(op))
+        diff_objects = generate_diff_objects(op)
         render_plan = [
-            {"type": "group", "title": f"Dry Run: Delta {op.index} of {len(operations)}", "items": [
+            {"type": "group", "title": f"Check: Delta {op.index} of {len(operations)}", "items": [
                 {"key": "Action", "value": op.action},
                 {"key": "Path", "value": os.path.relpath(op.path, FOUNDATION_ROOT) if op.path else 'N/A'}
             ]},
-            {"type": "prose", "title": "Diff", "text": diff_text}
+            {"type": "prose", "title": "Diff", "lines": diff_objects}
         ]
-        if op.index < len(operations):
-             render_plan.append({"type": "end", "text": "Press Enter to view next Delta..."})
-        
         loom.render(render_plan)
-        if op.index < len(operations):
-            input()
 
-    loom.render([{"type": "end", "text": "Dry Run Complete. No changes were made.", "color": "yellow"}])
+    loom.render([{"type": "end", "text": "Check Complete. No changes were made.", "color": "yellow"}])
 
 def run_transaction(approved_ops: list):
     """
@@ -84,7 +79,7 @@ def run_transaction(approved_ops: list):
 
 def main():
     parser = argparse.ArgumentParser(description="The Delta tool applies structured changes to the filesystem.", formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('--dry-run', action='store_true', help="Validate and show all diffs without applying changes.")
+    parser.add_argument('--check', action='store_true', help="Validate and show all diffs without applying changes.")
     parser.add_argument('--strict', action='store_true', help="Parser warnings and ambiguous blocks become fatal errors.")
     parser.add_argument('--transaction', action='store_true', help="Apply all approved changes as a single, atomic transaction.")
     parser.add_argument('-y', '--yes', action='store_true', help="Automatically approve and apply all operations without a prompt.")
@@ -118,8 +113,8 @@ def main():
         ])
         sys.exit(1)
     
-    if args.dry_run:
-        run_dry_run(operations)
+    if args.check:
+        run_check(operations)
         return
 
     # --- Approval Step ---
@@ -134,13 +129,14 @@ def main():
         try:
             with open('/dev/tty') as tty:
                 for op in operations:
-                    diff_text = "".join(generate_diff_text(op))
+                    # For interactive mode, we still show the colored diff
+                    diff_objects = generate_diff_objects(op)
                     render_plan = [
                         {"type": "group", "title": f"Reviewing Delta {op.index} of {len(operations)}", "items": [
                             {"key": "Action", "value": op.action},
                             {"key": "Path", "value": os.path.relpath(op.path, FOUNDATION_ROOT) if op.path else 'N/A'}
                         ]},
-                        {"type": "prose", "title": "Diff", "text": diff_text}
+                        {"type": "prose", "title": "Diff", "lines": diff_objects}
                     ]
                     loom.render(render_plan)
 
@@ -161,7 +157,7 @@ def main():
             loom.eprint("\n\nOperation cancelled by user.")
             skipped_count = len(operations) - len(approved_ops)
         except OSError:
-             loom.render(build_error_plan("Could not open controlling terminal. Use --dry-run or pipe from a file."))
+            loom.render(build_error_plan("Could not open controlling terminal. Use -y or --check."))
 
     # --- Final Application Step ---
     if approved_ops:

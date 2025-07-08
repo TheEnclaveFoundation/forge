@@ -4,11 +4,13 @@ import os
 import sys
 import argparse
 from typing import List
+from dotenv import load_dotenv
 
 from .indexer import build_lexicon_index
 from .harmonizer import harmonize_content
 from .manifest_generator import generate_manifest
 from forge.packages.common import ui as loom
+from forge.packages.psi import config # Import config for root path
 from .formats.obsidian import ObsidianFormatProvider
 
 # --- Format Provider Dispatcher ---
@@ -26,16 +28,11 @@ def get_all_markdown_files(repo_paths: List[str]) -> List[str]:
                     markdown_files.append(os.path.join(root, file))
     return sorted(markdown_files)
 
-def get_principles_list(lexicon: dict) -> List[str]:
-    """Extracts a list of principle names from the full lexicon."""
-    principles = []
-    for display_text, link_target in lexicon.items():
-        if link_target.startswith('Principles/'):
-            principles.append(display_text)
-    return principles
-
 def main():
     """Main entry point for the Iota CLI tool."""
+    # Load environment variables from .env file at the project root.
+    load_dotenv(dotenv_path=os.path.join(config.FOUNDATION_ROOT, '.env'))
+
     foundation_root = os.environ.get("ENCLAVE_FOUNDATION_ROOT", os.path.expanduser("~/softrecursion/TheEnclaveFoundation"))
 
     parser = argparse.ArgumentParser(
@@ -76,7 +73,6 @@ def main():
     repo_paths = [os.path.join(foundation_root, name) for name in repos_to_scan_names]
 
     lexicon = build_lexicon_index(repo_paths)
-    principles = get_principles_list(lexicon)
     files_to_process = get_all_markdown_files(repo_paths)
     
     setup_items = [
@@ -86,6 +82,7 @@ def main():
         {"key": "Markdown Files", "value": str(len(files_to_process))}
     ]
     render_plan.append({"type": "group", "title": "Iota Harmonizer", "items": setup_items})
+    loom.render(render_plan) # Render setup info before starting long process
 
     manifests_generated = 0
     files_to_fix = []
@@ -93,21 +90,22 @@ def main():
         with open(file_path, 'r', encoding='utf-8') as f:
             original_content = f.read()
 
-        new_content = harmonize_content(original_content, lexicon, principles, provider)
+        new_content = harmonize_content(original_content, lexicon, provider)
 
         if new_content != original_content:
             manifests_generated += 1
             if args.check:
-                 files_to_fix.append({"key": "File", "value": os.path.relpath(file_path, foundation_root)})
+                files_to_fix.append({"key": "File", "value": os.path.relpath(file_path, foundation_root)})
             else:
                 print(generate_manifest(file_path, new_content, foundation_root))
 
+    final_render_plan = []
     if args.check and files_to_fix:
-        render_plan.append({"type": "group", "title": "Files to Harmonize", "items": files_to_fix})
+        final_render_plan.append({"type": "group", "title": "Files to Harmonize", "items": files_to_fix})
 
     summary_message = f"Found {manifests_generated} files that need harmonization." if args.check else f"Generated {manifests_generated} Delta Manifests for piping."
-    render_plan.append({"type": "end", "text": summary_message})
-    loom.render(render_plan)
+    final_render_plan.append({"type": "end", "text": summary_message})
+    loom.render(final_render_plan)
 
 if __name__ == "__main__":
     main()

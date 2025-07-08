@@ -1,43 +1,20 @@
 #!/usr/bin/env python3
-# --- Psi (Ψ/ψ) | The Oracle ---
+# --- Psi (Ψ/ψ) | The Oracle (CLI Wrapper) ---
 import sys
 import argparse
 import json
 import os
-import yaml
 from dotenv import load_dotenv
 
-from .providers import google, local
-from . import cache_manager
+from .client import get_oracle_response
 from . import config
 from . import models
 from forge.packages.common import ui as loom
 
-# --- Provider Dispatcher ---
-PROVIDER_MAP = {
-    'google': google,
-    'local': local,
-}
 # --- Pydantic Model Registry ---
 MODEL_REGISTRY = {
     'SimpleResponse': models.SimpleResponse,
 }
-
-def load_provider_config() -> dict:
-    """Loads the providers.yaml config and builds a model-to-provider map."""
-    try:
-        providers_path = os.path.join(os.path.dirname(__file__), 'providers.yaml')
-        with open(providers_path, 'r', encoding='utf-8') as f:
-            cfg = yaml.safe_load(f)
-        
-        model_map = {}
-        for provider, models in cfg.items():
-            for model_info in models:
-                model_map[model_info['model_name']] = provider
-        return model_map
-    except Exception as e:
-        print(json.dumps({"error": True, "error_type": "CONFIG_ERROR", "message": f"Failed to load or parse providers.yaml: {e}"}))
-        sys.exit(1)
 
 def main():
     """Main entry point for the Psi CLI tool."""
@@ -77,31 +54,17 @@ def main():
 
     validation_model = MODEL_REGISTRY.get(args.validate_with) if args.validate_with else None
 
-    # --- Get Result (from Cache or Live) ---
-    result = None
-    if not args.no_cache and not validation_model:
-        result = cache_manager.get_cached_response(content_to_analyze, system_prompt, args.model)
-    
-    if not result:
-        model_to_provider_map = load_provider_config()
-        provider_name = model_to_provider_map.get(args.model)
-        if not provider_name or not PROVIDER_MAP.get(provider_name):
-            print(json.dumps({"error": True, "error_type": "CONFIG_ERROR", "message": f"Model '{args.model}' or its provider is not configured."}))
-            return
-        
-        provider_module = PROVIDER_MAP.get(provider_name)
-        result = provider_module.get_response(
-            content_to_analyze, 
-            system_prompt, 
-            args.model,
-            validation_model=validation_model
-        )
-        
-        if not args.no_cache and not validation_model and not result.get('error'):
-            cache_manager.set_cached_response(content_to_analyze, system_prompt, args.model, result, args.prompt_file)
+    # --- Call the reusable client function ---
+    result = get_oracle_response(
+        content=content_to_analyze,
+        system_prompt=system_prompt,
+        model_name=args.model,
+        no_cache=args.no_cache,
+        validation_model=validation_model,
+        prompt_file_path=args.prompt_file
+    )
 
     # --- Handle All Output ---
-
     if result.get('error'):
         print(json.dumps(result, indent=2))
         return

@@ -29,46 +29,47 @@ def get_response(content: str, system_prompt: str, model_name: str, validation_m
     full_prompt = f"{system_prompt}\n\n--- CONTENT TO ANALYZE ---\n\n{content}"
     
     last_error = None
-    for attempt in range(MAX_RETRIES):
+    for attempt in range(MAX_RETRIES + 1): # Allow for one initial call + retries
         try:
-            # --- First Attempt ---
+            # --- API Call ---
             response = _call_api(model, full_prompt)
             final_response_text = response.text
-            final_validation_result = None
+            pydantic_object = None
 
             # --- Validation and Re-prompt Logic ---
             if validation_model:
-                validation_result = validator.validate_response(response.text, validation_model)
-                # Check if validation failed (i.e., returned an error dict)
-                if isinstance(validation_result, dict) and validation_result.get("error"):
+                validation_attempt = validator.validate_response(final_response_text, validation_model)
+                
+                # If the first validation attempt fails, re-prompt the model once.
+                if isinstance(validation_attempt, dict) and validation_attempt.get("error"):
                     reprompt_prompt = (
                         f"{full_prompt}\n\n"
                         "Your previous response failed validation with the following error:\n"
-                        f"{validation_result['details']}\n\n"
+                        f"{validation_attempt['details']}\n\n"
                         "Please correct your response and output only the valid JSON object."
                     )
                     reprompt_response = _call_api(model, reprompt_prompt)
                     final_response_text = reprompt_response.text
                     
-                    # Final validation attempt
+                    # Second and final validation attempt
                     final_validation_result = validator.validate_response(final_response_text, validation_model)
-                    if final_validation_result.get("error"):
-                        return final_validation_result # Return the validation error if it fails again
+                    
+                    if isinstance(final_validation_result, dict) and final_validation_result.get("error"):
+                        return final_validation_result # Failed twice, return the final validation error
+                    else:
+                        pydantic_object = final_validation_result # Success on the second try
                 else:
-                    # First validation was successful
-                    final_validation_result = validation_result
-
+                    pydantic_object = validation_attempt # Success on the first try
+            
             # --- Success Case ---
             input_tokens = model.count_tokens(full_prompt).total_tokens
             output_tokens = model.count_tokens(final_response_text).total_tokens
             
-            is_valid_model = isinstance(final_validation_result, BaseModel)
-
             return {
                 "provider_used": "google", "model_name": model_name,
                 "response_text": final_response_text,
                 "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens},
-                "validation_result": final_validation_result.model_dump() if is_valid_model else None
+                "validation_result": pydantic_object.model_dump() if pydantic_object else None
             }
 
         except google_exceptions.PermissionDenied as e:
